@@ -10,7 +10,8 @@
 // with no URL segment, so no route restructuring is needed. Swapping this for
 // next-intl later only touches this folder.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
+import { subscribe, getString, setValue } from "@/lib/browserStore";
 import fr from "./dictionaries/fr.json";
 import ar from "./dictionaries/ar.json";
 
@@ -30,19 +31,20 @@ const lookup = (dict, key) =>
   key.split(".").reduce((acc, part) => (acc == null ? undefined : acc[part]), dict);
 
 export function LocaleProvider({ children }) {
-  // Always start on the default so server and client agree on the first paint;
-  // the stored preference is applied in the effect below, after hydration.
-  const [locale, setLocaleState] = useState(DEFAULT_LOCALE);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && DICTIONARIES[stored]) setLocaleState(stored);
-    setReady(true);
-  }, []);
+  // The server always renders French; the client reads the stored preference and
+  // React swaps to it after hydration without an extra effect-driven render.
+  const locale = useSyncExternalStore(
+    subscribe,
+    () => {
+      const stored = getString(STORAGE_KEY, DEFAULT_LOCALE);
+      return DICTIONARIES[stored] ? stored : DEFAULT_LOCALE;
+    },
+    () => DEFAULT_LOCALE
+  );
 
   const dir = locale === "ar" ? "rtl" : "ltr";
 
+  // Syncing the document element is a genuine external-system effect.
   useEffect(() => {
     document.documentElement.lang = locale === "ar" ? "ar-MA" : "fr";
     document.documentElement.dir = dir;
@@ -50,8 +52,7 @@ export function LocaleProvider({ children }) {
 
   const setLocale = useCallback((next) => {
     if (!DICTIONARIES[next]) return;
-    setLocaleState(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
+    setValue(STORAGE_KEY, next);
   }, []);
 
   const t = useCallback(
@@ -86,8 +87,8 @@ export function LocaleProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ locale, setLocale, t, pick, dir, isRTL: dir === "rtl", ready }),
-    [locale, setLocale, t, pick, dir, ready]
+    () => ({ locale, setLocale, t, pick, dir, isRTL: dir === "rtl" }),
+    [locale, setLocale, t, pick, dir]
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

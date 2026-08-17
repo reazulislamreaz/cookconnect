@@ -14,7 +14,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { ChefHat, Building2, AlertTriangle } from "lucide-react";
 
@@ -37,11 +37,11 @@ export default function SignInPage() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm();
 
-  const password = watch("password", "");
+  const password = useWatch({ control, name: "password", defaultValue: "" });
   const remaining = MAX_LOGIN_ATTEMPTS - attempts;
 
   const onSubmit = async (data) => {

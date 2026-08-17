@@ -33,17 +33,27 @@ export default function CandidateDetailPage() {
   const { requireAuth } = useSignupGate();
 
   const [candidate, setCandidate] = useState(undefined);
-  const [saved, setSaved] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
+  // Whether the profile is already bookmarked is derived from the data, not
+  // copied into state by an effect; `savedOverride` only records a change the
+  // user makes on this page.
+  const [savedOverride, setSavedOverride] = useState(null);
+  const saved = savedOverride ?? SAVED_PROFILES.some((s) => s.candidateId === id);
+
   useEffect(() => {
-    fetchCandidate(id, { asEmployer: isEmployer }).then(setCandidate);
-    setSaved(SAVED_PROFILES.some((s) => s.candidateId === id));
+    let alive = true;
+    fetchCandidate(id, { asEmployer: isEmployer }).then((data) => {
+      if (alive) setCandidate(data);
+    });
+    return () => {
+      alive = false;
+    };
   }, [id, isEmployer]);
 
   const save = requireAuth(async () => {
     const next = !saved;
-    setSaved(next);
+    setSavedOverride(next);
     await toggleSaveProfile(id, next);
   });
 

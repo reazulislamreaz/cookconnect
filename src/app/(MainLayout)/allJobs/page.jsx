@@ -11,7 +11,7 @@
 //
 // Section 03 adds the guest rule: a signed-out visitor only reaches page 1.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, RotateCcw, Zap } from "lucide-react";
 
 import { useT } from "@/i18n/LocaleProvider";
@@ -42,7 +42,7 @@ export default function AllJobsPage() {
   const [filters, setFilters] = useState(INITIAL);
   const [page, setPage] = useState(1);
   const [searchAll, setSearchAll] = useState(false);
-  const [result, setResult] = useState(null);
+  const [response, setResponse] = useState({ key: null, data: null });
   const [showFilters, setShowFilters] = useState(false);
 
   const positions = useMemo(
@@ -50,15 +50,26 @@ export default function AllJobsPage() {
     [filters.sectorId]
   );
 
-  const load = useCallback(async () => {
-    setResult(null);
-    const data = await searchJobs({ ...filters, page, isLoggedIn, searchAll });
-    setResult(data);
-  }, [filters, page, isLoggedIn, searchAll]);
+  // The query is identified by a key. State is only written from the async
+  // continuation — never synchronously inside the effect body — and a response
+  // whose key no longer matches the current query is discarded, so a slow
+  // earlier request can't overwrite a newer one.
+  const queryKey = JSON.stringify({ ...filters, page, isLoggedIn, searchAll });
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let alive = true;
+    const query = JSON.parse(queryKey);
+    searchJobs(query).then((data) => {
+      if (alive) setResponse({ key: queryKey, data });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [queryKey]);
+
+  // While a new query is in flight the previous response is ignored, which is
+  // what drives the skeleton.
+  const result = response.key === queryKey ? response.data : null;
 
   const setFilter = (key, value) => {
     setPage(1);

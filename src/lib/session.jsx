@@ -7,7 +7,8 @@
 // (Change Requirements 03) is the behaviour the client cares most about and it
 // should be what you see on a fresh load.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
+import { subscribe, getJSON, setValue, removeValue } from "@/lib/browserStore";
 
 const STORAGE_KEY = "nkhedmou.session";
 const SessionContext = createContext(null);
@@ -32,47 +33,38 @@ const DEMO_USERS = {
 const GUEST = { role: ROLES.GUEST, user: null };
 
 export function SessionProvider({ children }) {
-  // Start as a guest on both server and client so the first paint matches,
-  // then restore any stored session after hydration.
-  const [session, setSession] = useState(GUEST);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.role && parsed.role !== ROLES.GUEST) setSession(parsed);
-      }
-    } catch {
-      // Corrupted value — fall back to guest rather than crashing the shell.
-    }
-    setReady(true);
-  }, []);
+  // The server always renders the guest view; the stored session is picked up on
+  // the client through the external store, so there is no hydration mismatch and
+  // no setState inside an effect.
+  const session = useSyncExternalStore(
+    subscribe,
+    () => {
+      const stored = getJSON(STORAGE_KEY, GUEST);
+      return stored?.role && stored.role !== ROLES.GUEST ? stored : GUEST;
+    },
+    () => GUEST
+  );
 
   const login = useCallback((role) => {
     const next = { role, user: DEMO_USERS[role] || null };
-    setSession(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setValue(STORAGE_KEY, next);
     return next;
   }, []);
 
   const logout = useCallback(() => {
-    setSession(GUEST);
-    window.localStorage.removeItem(STORAGE_KEY);
+    removeValue(STORAGE_KEY);
   }, []);
 
   const value = useMemo(
     () => ({
       ...session,
-      ready,
       isLoggedIn: session.role !== ROLES.GUEST,
       isCandidate: session.role === ROLES.CANDIDATE,
       isEmployer: session.role === ROLES.EMPLOYER,
       login,
       logout,
     }),
-    [session, ready, login, logout]
+    [session, login, logout]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

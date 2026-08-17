@@ -1,7 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['i.ibb.co'],
+    // `images.domains` was deprecated and removed in Next 16 in favour of
+    // remotePatterns, which is scoped to a protocol and path rather than
+    // allowing any URL on the host.
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "i.ibb.co",
+        pathname: "/**",
+      },
+    ],
   },
 };
 

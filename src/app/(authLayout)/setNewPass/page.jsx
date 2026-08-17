@@ -4,7 +4,7 @@
 // (Change Requirements 05).
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 
@@ -21,11 +21,11 @@ export default function SetNewPassPage() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm();
 
-  const password = watch("password", "");
+  const password = useWatch({ control, name: "password", defaultValue: "" });
 
   if (done) {
     return (

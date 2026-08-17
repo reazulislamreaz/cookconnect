@@ -6,7 +6,7 @@
 // and experience. Change Requirements 07: 12 profiles per page, plus the same
 // "Search All" shortcut as the offers page. Section 03: guests see page 1 only.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, RotateCcw, Zap } from "lucide-react";
 
 import { useT } from "@/i18n/LocaleProvider";
@@ -39,7 +39,7 @@ export default function FindProfilesPage() {
   const [filters, setFilters] = useState(INITIAL);
   const [page, setPage] = useState(1);
   const [searchAll, setSearchAll] = useState(false);
-  const [result, setResult] = useState(null);
+  const [response, setResponse] = useState({ key: null, data: null });
   const [showFilters, setShowFilters] = useState(false);
 
   const positions = useMemo(
@@ -47,14 +47,21 @@ export default function FindProfilesPage() {
     [filters.sectorId]
   );
 
-  const load = useCallback(async () => {
-    setResult(null);
-    setResult(await searchCandidates({ ...filters, page, isLoggedIn, searchAll }));
-  }, [filters, page, isLoggedIn, searchAll]);
+  // Same request-key pattern as the offers page: state is written only from the
+  // async continuation, and out-of-order responses are discarded.
+  const queryKey = JSON.stringify({ ...filters, page, isLoggedIn, searchAll });
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let alive = true;
+    searchCandidates(JSON.parse(queryKey)).then((data) => {
+      if (alive) setResponse({ key: queryKey, data });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [queryKey]);
+
+  const result = response.key === queryKey ? response.data : null;
 
   const setFilter = (key, value) => {
     setPage(1);

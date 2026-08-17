@@ -1,23 +1,23 @@
 "use client";
 
-import { makeStore } from "../redux/store";
-import { useRef } from "react";
+import { useEffect, useState } from "react";
 import { Provider } from "react-redux";
 import { persistStore } from "redux-persist";
+import { makeStore } from "../redux/store";
 
 export default function StoreProvider({ children }) {
-  const storeRef = useRef();
-  const persistorRef = useRef();
+  // A lazy useState initializer creates the store exactly once per mount without
+  // reading or writing a ref during render, which React 19 disallows.
+  const [store] = useState(makeStore);
 
-  if (!storeRef.current) {
-    storeRef.current = makeStore();
-  }
-
-  // persistStore was previously called on every render, creating a new
-  // persistor each time; it only ever needs to run once per store.
-  if (!persistorRef.current && typeof window !== "undefined") {
-    persistorRef.current = persistStore(storeRef.current);
-  }
+  // Rehydration is a browser-only side effect, so it belongs in an effect rather
+  // than in the render path.
+  useEffect(() => {
+    const persistor = persistStore(store);
+    return () => {
+      persistor.pause();
+    };
+  }, [store]);
 
   // PersistGate deliberately removed.
   //
@@ -28,8 +28,8 @@ export default function StoreProvider({ children }) {
   // blank first paint on mobile, which is the opposite of what this project
   // needs (the client expects most traffic on phones).
   //
-  // Rehydration still runs via persistStore above; we simply no longer block
-  // painting on it. Any component that must wait for persisted state should
-  // handle that locally rather than gating the whole tree.
-  return <Provider store={storeRef.current}>{children}</Provider>;
+  // Rehydration still runs above; we simply no longer block painting on it. Any
+  // component that must wait for persisted state should handle that locally
+  // rather than gating the whole tree.
+  return <Provider store={store}>{children}</Provider>;
 }

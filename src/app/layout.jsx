@@ -1,7 +1,6 @@
 import { DM_Sans, Urbanist, Inter, Poppins } from "next/font/google";
 import "../app/globals.css";
 
-import { AntdRegistry } from "@ant-design/nextjs-registry";
 import Providers from "../Provider/Providers";
 
 // Import fonts
@@ -28,9 +27,7 @@ export default function RootLayout({ children }) {
       <body
         className={`${dmSans.variable} ${urbanist.variable} ${poppins.variable} ${inter.variable} antialiased bg-white`}
       >
-        <Providers>
-          <AntdRegistry>{children}</AntdRegistry>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

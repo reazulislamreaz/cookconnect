@@ -10,27 +10,28 @@
 // user can dismiss, and the layout reserves space for it), and dismissal lasts
 // for the session only — sessionStorage, not localStorage.
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 import { useSession } from "@/lib/session";
+import { subscribe, getString, setValue } from "@/lib/browserStore";
 import { STICKY_BANNER } from "@/mock/banners";
 
 const DISMISS_KEY = "nkhedmou.stickyAd.dismissed";
 
 export default function StickyAdBanner() {
   const { isLoggedIn } = useSession();
-  const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
-    // Rendered only after mount so the server markup and first client paint match.
-    setVisible(window.sessionStorage.getItem(DISMISS_KEY) !== "1");
-  }, []);
+  // Dismissal lasts for the session only, so this reads sessionStorage rather
+  // than localStorage. The server snapshot is "not dismissed", which is the
+  // common case and what the prerendered HTML should show.
+  const visible = useSyncExternalStore(
+    subscribe,
+    () => getString(DISMISS_KEY, "", "session") !== "1",
+    () => true
+  );
 
-  const dismiss = () => {
-    window.sessionStorage.setItem(DISMISS_KEY, "1");
-    setVisible(false);
-  };
+  const dismiss = () => setValue(DISMISS_KEY, "1", "session");
 
   if (!visible) return null;
 

@@ -13,7 +13,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChefHat, Building2 } from "lucide-react";
 
@@ -37,11 +37,14 @@ function SignUpForm() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm();
 
-  const password = watch("password", "");
+  // useWatch rather than watch(): watch() returns a fresh function each render
+  // that React Compiler cannot memoize, so it opts the whole component out of
+  // optimisation.
+  const password = useWatch({ control, name: "password", defaultValue: "" });
 
   const onSubmit = async () => {
     login(role);
