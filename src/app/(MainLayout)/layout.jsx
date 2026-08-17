@@ -1,30 +1,16 @@
-// "use client";
-
 import Footer from "../../app/component/shared/Footer";
 import Navbar from "../../app/component/shared/Navbar";
+import StickyAdBanner from "../../app/component/ui/StickyAdBanner";
 
-
-const MainLayout = ({
-  children,
-}) => {
+const MainLayout = ({ children }) => {
   return (
-    <>
-
-      <div>
-        <div className="min-h-screen ">
-          <Navbar />
-<div className="">
-
-          {children}
-</div>
-        </div>
-        <div>
-          <Footer/>
-     
-        </div>
-      </div>
-  
-    </>
+    <div className="flex min-h-screen flex-col">
+      <Navbar />
+      <main className="flex-1">{children}</main>
+      <Footer />
+      {/* Follows the user across every page for the session (Change Req 04). */}
+      <StickyAdBanner />
+    </div>
   );
 };
 

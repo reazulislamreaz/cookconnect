@@ -1,65 +1,60 @@
 "use client";
 
 import Image from "next/image";
-import React, { useState } from "react";
-import logo from "../../../assets/CookconneKt 1.png";
-import userImg from "../../../assets/Group.png";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { IoNotificationsOutline } from "react-icons/io5";
-import { MdOutlineTranslate } from "react-icons/md";
+import { Globe, ChevronDown, Menu, X, Check } from "lucide-react";
+
+import logo from "../../../assets/CookconneKt 1.png";
+import { useLocale, useT, LOCALES } from "@/i18n/LocaleProvider";
+import { useSession } from "@/lib/session";
+import { unreadCount } from "@/mock/notifications";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const t = useT();
+  const { locale, setLocale } = useLocale();
+  const { user, isLoggedIn, isEmployer, logout } = useSession();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
 
-  const role = "owner"; // Change this to "user" or "owner" to test
-
-  const isLoggedIn = true; // Toggle to test login/logout
-  const profileLink = role === "owner" ? "/resturentDashboard" : "/dashboard";
-  const jobsLabel = role === "owner" ? "All Cooks" : "All Jobs";
-  const jobsLink = role === "owner" ? "/allCooks" : "/allJobs";
+  const dashboardLink = isEmployer ? "/resturentDashboard" : "/dashboard";
 
   const navItems = [
-    { label: "Find Profiles", href: "/jobProfile" },
-    { label: "Job Offers", href: "/allJobs" },
-    ...(role === "owner"
-     ?  [{ label: "Post an Offer", href: "/jobPost" },] :""
-   
-  )];
-
-  const userData = {
-    name: "Giring Furqon",
-    avatar: userImg,
-  };
+    { label: t("nav.findProfiles"), href: "/jobProfile" },
+    { label: t("nav.jobOffers"), href: "/allJobs" },
+    ...(isEmployer ? [{ label: t("nav.postOffer"), href: "/jobPost" }] : []),
+  ];
 
   const handleLogout = () => {
-    console.log("Logged out");
-    // Add logout logic here (clear token, redirect, etc.)
-    setUserDropdownOpen(false);
+    logout();
+    setUserOpen(false);
+    setMenuOpen(false);
+    router.push("/");
   };
 
   return (
-    <div className="bg-white w-full px-4 py-2 border-b shadow-sm">
-      <nav className="container mx-auto flex justify-between items-center relative">
-        {/* Logo */}
-        <Link href="/">
-          <div className="flex items-center space-x-2">
-            <Image src={logo} alt="Logo" width={46} height={46} />
-            <h1 className="text-lg font-bold">CookconneKt</h1>
-          </div>
+    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white shadow-sm">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
+        {/* Brand */}
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          <Image src={logo} alt="" width={38} height={38} />
+          <span className="text-lg font-bold text-gray-900">{t("brand.name")}</span>
         </Link>
 
-        {/* Nav Links */}
-        <ul className="hidden lg:flex space-x-6 text-sm font-medium text-gray-700">
+        {/* Desktop nav */}
+        <ul className="hidden items-center gap-7 lg:flex">
           {navItems.map((item) => (
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`font-poppins text-xl ${
-                  pathname === item.href ? "text-orange-600" : ""
+                className={`font-poppins text-[15px] transition hover:text-accent ${
+                  pathname === item.href ? "font-semibold text-accent" : "text-gray-700"
                 }`}
               >
                 {item.label}
@@ -68,106 +63,68 @@ export default function Navbar() {
           ))}
         </ul>
 
-        {/* User Section */}
-        <div className="hidden lg:flex items-center space-x-4 relative">
+        {/* Desktop right side */}
+        <div className="hidden items-center gap-3 lg:flex">
+          <LanguageSwitch
+            open={langOpen}
+            setOpen={setLangOpen}
+            locale={locale}
+            setLocale={setLocale}
+            label={t("nav.language")}
+          />
+
           {isLoggedIn ? (
             <>
-              {/* Avatar + Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center space-x-2 cursor-pointer"
-                >
-                  <Image
-                    src={userData.avatar}
-                    alt="User"
-                    width={32}
-                    height={32}
-                    className="rounded-full"
-                  />
-                  <div className="text-sm text-left">
-                    <p className="text-gray-600 font-medium">Hi!!!</p>
-                    <p className="text-gray-800">{userData.name}</p>
-                  </div>
-                </button>
-
-                {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                    <Link
-                      href={profileLink}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setUserDropdownOpen(false)}
-                    >
-                      Dashboard
-                    </Link>
-
-                    <Link
-                      href={jobsLink}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setUserDropdownOpen(false)}
-                    >
-                      {jobsLabel}
-                    </Link>
-
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Notification Icon */}
-              <Link href="/notification">
-                <div
-                  className={`p-2 border border-gray-400 rounded-full hover:bg-gray-100 cursor-pointer ${
-                    pathname === "/notification"
-                      ? "bg-orange-500 text-white"
-                      : ""
+              <Link href="/notification" aria-label={t("nav.notifications")}>
+                <span
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 transition hover:bg-gray-50 ${
+                    pathname === "/notification" ? "border-accent bg-accent text-white" : "text-gray-700"
                   }`}
                 >
-                  <IoNotificationsOutline size={20} />
-                </div>
+                  <IoNotificationsOutline size={19} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </span>
               </Link>
 
-              {/* Language Selector */}
               <div className="relative">
                 <button
-                  onClick={() => setLangOpen(!langOpen)}
-                  className="flex items-center space-x-1 border border-gray-300 px-6 py-2 rounded-xl text-sm text-black hover:bg-gray-100"
+                  onClick={() => setUserOpen((v) => !v)}
+                  className="flex items-center gap-2"
                 >
-                  <MdOutlineTranslate size={14} />
-                  <span>Translate</span>
-                  <svg
-                    className="w-3 h-3 ml-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={user?.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                  <span className="max-w-[130px] truncate text-start text-sm">
+                    <span className="block text-xs text-gray-500">{t("nav.greeting")}</span>
+                    <span className="block truncate font-medium text-gray-800">{user?.name}</span>
+                  </span>
+                  <ChevronDown size={15} className="text-gray-400" />
                 </button>
 
-                {langOpen && (
-                  <div className="absolute right-0 mt-2 w-32 bg-white border border-gray-200 rounded shadow z-50">
-                    <button
-                      onClick={() => setLangOpen(false)}
-                      className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                {userOpen && (
+                  <div className="absolute end-0 mt-2 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <Link
+                      href={dashboardLink}
+                      onClick={() => setUserOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                      English
-                    </button>
-                    <button
-                      onClick={() => setLangOpen(false)}
-                      className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                      {t("nav.dashboard")}
+                    </Link>
+                    <Link
+                      href={isEmployer ? "/resturentProfile" : "/editProfile"}
+                      onClick={() => setUserOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                      Français
+                      {isEmployer ? t("employer.profileTitle") : t("profile.editTitle")}
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full border-t border-gray-100 px-4 py-2.5 text-start text-sm text-red-600 hover:bg-red-50"
+                    >
+                      {t("nav.logout")}
                     </button>
                   </div>
                 )}
@@ -175,114 +132,152 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/signUp">
-                <button className="bg-orange-500 text-white px-5 py-2 rounded hover:bg-orange-600 text-sm">
-                  Sign Up
-                </button>
+              <Link
+                href="/signIn"
+                className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent-tint"
+              >
+                {t("nav.login")}
               </Link>
-              <Link href="/signIn">
-                <button className="border border-orange-500 text-orange-500 px-5 py-2 rounded hover:bg-orange-50 text-sm">
-                  Login
-                </button>
+              <Link
+                href="/signUp"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-dark"
+              >
+                {t("nav.signUp")}
               </Link>
             </>
           )}
         </div>
 
-        {/* Mobile Button */}
-        <button
-          className="lg:hidden"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle Menu"
-        >
-          <svg
-            className="w-6 h-6 text-gray-800"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        {/* Mobile controls */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <LanguageSwitch
+            open={langOpen}
+            setOpen={setLangOpen}
+            locale={locale}
+            setLocale={setLocale}
+            label={t("nav.language")}
+            compact
+          />
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={t("nav.menu")}
+            className="rounded-md p-2 text-gray-800 hover:bg-gray-100"
           >
-            {menuOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            )}
-          </svg>
-        </button>
-
-        {/* Mobile Menu */}
-        {menuOpen && (
-          <div className="absolute top-16 left-0 right-0 bg-white border-t z-50 shadow-md lg:hidden">
-            <ul className="flex flex-col space-y-2 px-4 py-3 text-gray-700">
-              {navItems.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className={`block py-2 ${
-                      pathname === item.href
-                        ? "text-orange-500 font-semibold"
-                        : ""
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-              <li className="border-t pt-3">
-                {isLoggedIn ? (
-                  <div className="flex flex-col space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Image
-                        src={userData.avatar}
-                        alt="User"
-                        width={30}
-                        height={30}
-                        className="rounded-full"
-                      />
-                      <span className="font-medium">{userData.name}</span>
-                    </div>
-                    <Link href={profileLink}>
-                      <span className="text-sm text-gray-700">Dashboard</span>
-                    </Link>
-                    <Link href={jobsLink}>
-                      <span className="text-sm text-gray-700">{jobsLabel}</span>
-                    </Link>
-                    <button
-                      className="text-sm text-red-500 text-left"
-                      onClick={handleLogout}
-                    >
-                      Logout
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col space-y-2">
-                    <Link href="/signup">
-                      <button className="bg-orange-500 text-white px-4 py-2 rounded">
-                        Sign Up
-                      </button>
-                    </Link>
-                    <Link href="/login">
-                      <button className="border border-orange-500 text-orange-500 px-4 py-2 rounded">
-                        Login
-                      </button>
-                    </Link>
-                  </div>
-                )}
-              </li>
-            </ul>
-          </div>
-        )}
+            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </nav>
+
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div className="border-t border-gray-200 bg-white lg:hidden">
+          <ul className="mx-auto max-w-7xl px-4 py-3">
+            {navItems.map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={`block py-2.5 ${
+                    pathname === item.href ? "font-semibold text-accent" : "text-gray-700"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+
+            <li className="mt-2 border-t border-gray-100 pt-3">
+              {isLoggedIn ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={user?.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                    <span className="text-sm font-medium text-gray-800">{user?.name}</span>
+                  </div>
+                  <Link href={dashboardLink} onClick={() => setMenuOpen(false)} className="text-sm text-gray-700">
+                    {t("nav.dashboard")}
+                  </Link>
+                  <Link href="/notification" onClick={() => setMenuOpen(false)} className="text-sm text-gray-700">
+                    {t("nav.notifications")}
+                  </Link>
+                  <button onClick={handleLogout} className="text-start text-sm text-red-600">
+                    {t("nav.logout")}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/signUp"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-md bg-accent px-4 py-2.5 text-center text-sm font-semibold text-white"
+                  >
+                    {t("nav.signUp")}
+                  </Link>
+                  <Link
+                    href="/signIn"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-md border border-accent px-4 py-2.5 text-center text-sm font-medium text-accent"
+                  >
+                    {t("nav.login")}
+                  </Link>
+                </div>
+              )}
+            </li>
+          </ul>
+        </div>
+      )}
+    </header>
+  );
+}
+
+/**
+ * Change Requirements 02: the language switch must be clear and easy to find,
+ * so it stays visible on mobile rather than being buried in the burger menu.
+ */
+function LanguageSwitch({ open, setOpen, locale, setLocale, label, compact = false }) {
+  const active = LOCALES.find((l) => l.id === locale);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        aria-label={label}
+        className={`flex items-center gap-1.5 rounded-lg border border-gray-300 text-sm text-gray-800 transition hover:bg-gray-50 ${
+          compact ? "px-2.5 py-2" : "px-3.5 py-2"
+        }`}
+      >
+        <Globe size={16} />
+        <span className="font-medium">{active?.short}</span>
+        <ChevronDown size={14} className="text-gray-400" />
+      </button>
+
+      {open && (
+        <>
+          <button
+            aria-hidden
+            tabIndex={-1}
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute end-0 z-20 mt-2 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+            {LOCALES.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => {
+                  setLocale(l.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-4 py-2.5 text-start text-sm transition hover:bg-gray-50 ${
+                  l.id === locale ? "font-semibold text-brand" : "text-gray-700"
+                }`}
+              >
+                {l.label}
+                {l.id === locale && <Check size={14} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
