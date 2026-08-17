@@ -1,36 +1,57 @@
-"use client"
+"use client";
 
-import React from "react"
-import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Bell } from "lucide-react";
 
-const NotificationDetailsPage = () => {
-  return (
-    <div className="min-h-screen bg-gray-100 p-6 font-poppins">
-      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
-        {/* Back button */}
-        <Link href="/notification">
-          <div className="flex items-center text-gray-600 hover:text-gray-800 cursor-pointer mb-4">
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            <span className="text-sm font-medium">Back to Notifications</span>
-          </div>
-        </Link>
+import { useLocale, useT } from "@/i18n/LocaleProvider";
+import { fetchNotifications } from "@/mock/api";
+import EmptyState from "@/app/component/ui/EmptyState";
 
-        {/* Title */}
-        <h1 className="text-2xl font-semibold text-gray-800 mb-2">
-          A new Product is added
-        </h1>
+export default function NotificationDetailPage() {
+  const t = useT();
+  const { locale } = useLocale();
+  const { id } = useParams();
+  const [item, setItem] = useState(undefined);
 
-        {/* Timestamp */}
-        <p className="text-sm text-gray-500 mb-6">20-Dec-2024, 3:00 PM</p>
+  useEffect(() => {
+    fetchNotifications().then((all) => setItem(all.find((n) => n.id === id) || null));
+  }, [id]);
 
-        {/* Message */}
-        <p className="text-base text-gray-700 leading-relaxed">
-          Product name, Brand name, Price <strong>$1070,000</strong> is added to our collection! Check it out in your product dashboard to explore more details or edit as necessary.
-        </p>
+  if (item === undefined) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <div className="h-40 animate-pulse rounded-xl bg-gray-100" />
       </div>
-    </div>
-  )
-}
+    );
+  }
 
-export default NotificationDetailsPage
+  if (!item) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <EmptyState icon={Bell} title={t("notifications.empty")} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-10 font-poppins">
+      <Link
+        href="/notification"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-accent"
+      >
+        <ArrowLeft size={15} className="rtl:rotate-180" />
+        {t("common.back")}
+      </Link>
+
+      <article className="rounded-xl border border-gray-200 bg-white p-6">
+        <h1 className="text-xl font-bold text-gray-900">
+          {locale === "ar" ? item.titleAr : item.title}
+        </h1>
+        <p className="mt-1 text-xs text-gray-400">{item.date}</p>
+        <p className="mt-4 text-sm leading-relaxed text-gray-700">{item.body}</p>
+      </article>
+    </div>
+  );
+}

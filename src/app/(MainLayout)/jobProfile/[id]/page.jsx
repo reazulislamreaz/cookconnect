@@ -1,238 +1,259 @@
 "use client";
 
-import Image from "next/image";
+// Candidate profile detail.
+//
+// Change Requirements 13 "Candidate Contact Privacy": the phone number is only
+// attached by the mock API when the viewer is a signed-in employer, and every
+// reveal is framed as a logged action. A guest never receives it at all.
+//
+// Change Requirements 10: the Save/bookmark control is available here too.
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
-import { SlBadge } from "react-icons/sl";
-import chef from "../../../../assets/Ellipse 3.png";
 import {
-  ArrowLeft,
-  MapPin,
-  Briefcase,
-  Star,
-  Bookmark,
-  CheckCircle,
-  Phone,
-  Award,
+  ArrowLeft, MapPin, Briefcase, Clock, BadgeCheck, Bookmark,
+  Phone, Mail, GraduationCap, Building2, Lock, FileText,
 } from "lucide-react";
 
-export const chefProfileData = {
-  name: "Ahmed Benjelloun",
-  title: "Chef",
-  location: "Casablanca",
-  experience: "8 Years Of Experience",
-  experienceRange: "5 To 10 Years",
-  isVerified: true,
-  profilePicture: chef,
-  avatarInitial: "A",
-  previousExperience: [
-    {
-      companyName: "Cafe rio",
-      workingPeriod: "2 years",
-      position: "Chef",
-      date: "05/12/2024\n05/12/2026",
-    },
-    {
-      companyName: "Cafe rio",
-      workingPeriod: "2 years",
-      position: "Chef",
-      date: "05/12/2024\n05/12/2026",
-    },
-    {
-      companyName: "Cafe rio",
-      workingPeriod: "2 years",
-      position: "Chef",
-      date: "05/12/2024\n05/12/2026",
-    },
-    {
-      companyName: "Cafe rio",
-      workingPeriod: "2 years",
-      position: "Chef",
-      date: "05/12/2024\n05/12/2026",
-    },
-  ],
-  culinarySpecialties: [
-    "Mediterranean",
-    "French",
-    "Moroccan Traditional",
-    "Moroccan Traditional",
-  ],
-  dishPhotos: [
-    "https://i.ibb.co/HD6WMnhg/Rectangle-119.png",
-    "https://i.ibb.co/HD6WMnhg/Rectangle-119.png",
-    "https://i.ibb.co/9kBThpjC/Rectangle-118.png",
-    "https://i.ibb.co/1Gfd7RtB/Rectangle-117.png",
-    "https://i.ibb.co/j9Wwj0H0/Rectangle-116.png",
-    "https://i.ibb.co/j9Wwj0H0/Rectangle-116.png",
-  ],
-  statistics: {
-    profileViewed: "24 Times",
-    memberSince: "January 2024",
-    lastActivity: "(The Text Is Cut Off)",
-  },
-};
+import { useLocale, useT } from "@/i18n/LocaleProvider";
+import { useSession } from "@/lib/session";
+import { useSignupGate } from "@/app/component/ui/SignupGate";
+import { fetchCandidate, toggleSaveProfile } from "@/mock/api";
+import { getCity } from "@/mock/cities";
+import { EXPERIENCE_LEVELS, AVAILABILITY, REQUIREMENT_BY_ID } from "@/mock/jobOptions";
+import { SAVED_PROFILES } from "@/mock/applications";
+import EmptyState from "@/app/component/ui/EmptyState";
 
-export default function ChefProfilePage() {
-  const chef = chefProfileData;
+export default function CandidateDetailPage() {
+  const t = useT();
+  const { pick, locale } = useLocale();
+  const { id } = useParams();
+  const { isEmployer } = useSession();
+  const { requireAuth } = useSignupGate();
+
+  const [candidate, setCandidate] = useState(undefined);
+  const [saved, setSaved] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    fetchCandidate(id, { asEmployer: isEmployer }).then(setCandidate);
+    setSaved(SAVED_PROFILES.some((s) => s.candidateId === id));
+  }, [id, isEmployer]);
+
+  const save = requireAuth(async () => {
+    const next = !saved;
+    setSaved(next);
+    await toggleSaveProfile(id, next);
+  });
+
+  const reveal = requireAuth(() => setRevealed(true));
+
+  if (candidate === undefined) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-16">
+        <div className="h-32 animate-pulse rounded-xl bg-gray-100" />
+      </div>
+    );
+  }
+
+  if (!candidate) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <EmptyState title={t("common.noResults")} />
+      </div>
+    );
+  }
+
+  const city = getCity(candidate.city);
+  const experience = EXPERIENCE_LEVELS.find((e) => e.id === candidate.experience);
+  const availability = AVAILABILITY.find((a) => a.id === candidate.availability);
 
   return (
-    <div className="min-h-screen bg-[#f9fafa] px-4 py-8 md:px-8 font-poppins">
-      <div className="max-w-7xl mx-auto">
-        {/* <Link href="/jobProfile" className="flex items-center text-sm text-gray-600 mb-6">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Chef Profile
-        </Link> */}
+    <div className="mx-auto max-w-4xl px-4 py-10 font-poppins">
+      <Link
+        href="/jobProfile"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-accent"
+      >
+        <ArrowLeft size={15} className="rtl:rotate-180" />
+        {t("common.back")}
+      </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Top Profile Card */}
-            <div className="bg-white rounded-xl border p-6 flex flex-col md:flex-row gap-6 items-start">
-              <div className="relative w-24 h-24 rounded-full ">
-                <Image
-                  src={chef.profilePicture}
-                  alt="Chef"
-                  width={96}
-                  height={96}
-                  className="rounded-full object-cover"
-                />
-                <div className="absolute bottom-1 right-1 bg-[#679046] p-1 rounded-full">
-                  <Award className="h-4 w-4 text-white" />
-                </div>
-              </div>
-
-              <div className="flex-1">
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-1 gap-2">
-                  <h2 className="text-xl font-semibold text-gray-800 leading-tight">
-                    {chef.name.split(" ")[0]} <br /> {chef.name.split(" ")[1]}
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1 text-sm text-gray-700">
-                      <Bookmark className="w-4 h-4" /> Save
-                    </button>
-                    {chef.isVerified && (
-                      <span className="flex items-center gap-1 text-sm px-2 py-1 bg-[#E4FCE9] text-[#3D5F49] rounded-md">
-                        <SlBadge  className="w-4 h-4" /> Verified
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <p className="text-sm text-gray-600 mb-2">{chef.title}</p>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" /> {chef.location}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4" /> {chef.experience}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Briefcase className="w-4 h-4" /> {chef.experienceRange}
-                  </div>
-                </div>
+      {/* Header */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={candidate.photo}
+              alt=""
+              className="h-20 w-20 shrink-0 rounded-full object-cover"
+            />
+            <div>
+              <h1 className="flex items-center gap-1.5 text-xl font-bold text-gray-900 sm:text-2xl">
+                {candidate.name}
+                {candidate.verified && <BadgeCheck size={18} className="text-brand" />}
+              </h1>
+              <p className="mt-0.5 text-sm text-gray-600">
+                {locale === "ar" ? candidate.titleAr : candidate.title}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-500">
+                <Meta icon={MapPin}>{pick(city)}</Meta>
+                <Meta icon={Briefcase}>{pick(experience)}</Meta>
+                <Meta icon={Clock}>{pick(availability)}</Meta>
               </div>
             </div>
-
-            {/* Experience */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-sm font-semibold text-gray-800 mb-4">Previous Experience</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {chef.previousExperience.map((exp, idx) => (
-                  <div key={idx} className="bg-[#F0F4EC] border border-[#679046] rounded-md p-3 text-sm">
-            <div className="flex justify-between  items-center ">
-                <div>
-                            <p className="text-gray-800">
-                      <span className="font-medium">Company Name :</span> {exp.companyName}
-                    </p>
-                    <p className="text-gray-800">
-                      <span className="font-medium">Working Period :</span> {exp.workingPeriod}
-                    </p>
-                </div>
-                <div>
-     <p className="text-gray-800">
-                      <span className="font-medium">Position :</span> {exp.position}
-                    </p>
-                    <p className="text-gray-800 whitespace-pre-line">
-                      <span className="font-medium">Date :</span> {exp.date}
-                    </p>
-                </div>
-            </div>
-               
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Specialties */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-sm font-semibold text-gray-800 mb-4">Culinary Specialties</h3>
-              <div className="flex flex-wrap gap-2">
-                {chef.culinarySpecialties.map((tag, i) => (
-                  <span
-                    key={i}
-                    className="bg-[#ffe8d0] text-[#e76f00] px-4 py-1 rounded-full text-sm font-medium"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-      
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Contact */}
-            <div className="bg-white rounded-xl border p-6 text-center">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Contact:</h3>
-              <div className="flex justify-center mb-4">
-                <div className="bg-gray-100 rounded-full p-3">
-                  <Phone className="h-6 w-6 text-gray-600" />
-                </div>
-              </div>
-              <p className="text-xs text-gray-600 mb-3">
-                Contact information is reserved for restaurants
+          <button
+            onClick={save}
+            className={`flex shrink-0 items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium transition ${
+              saved
+                ? "border-brand bg-brand-soft text-brand-dark"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <Bookmark size={15} fill={saved ? "currentColor" : "none"} />
+            {saved ? t("candidates.profileSaved") : t("candidates.saveProfile")}
+          </button>
+        </div>
+
+        {/* Contact — gated */}
+        <div className="mt-5 border-t border-gray-100 pt-4">
+          {revealed && candidate.phone ? (
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <Meta icon={Phone}>{candidate.phone}</Meta>
+              <Meta icon={Mail}>{candidate.email}</Meta>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="flex items-center gap-1.5 text-sm text-gray-500">
+                <Lock size={14} />
+                {t("profile.contactHidden")}
               </p>
-              <button className="bg-orange-500 hover:bg-orange-600 text-white text-sm py-2 px-4 rounded-md">
-                Access contacts
+              <button
+                onClick={reveal}
+                className="shrink-0 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark"
+              >
+                {t("candidates.contactRequest")}
               </button>
             </div>
-
-            {/* Stats */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Statistics Section:</h3>
-              <div className="text-xs space-y-2 text-gray-700">
-                <div className="flex justify-between">
-                  <span>Profile Viewed:</span>
-                  <span className="font-medium">{chef.statistics.profileViewed}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Member Since:</span>
-                  <span className="font-medium">{chef.statistics.memberSince}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Last:</span>
-                  <span className="font-medium">{chef.statistics.lastActivity}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
-              {/* Dishes */}
-            <div className="bg-white rounded-xl border p-6 mt-6">
-              <h3 className="text-sm font-semibold text-gray-800 mb-1">Photos of your dishes</h3>
-              <p className="text-xs text-gray-600 mb-3">Current Photos:</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3">
-                {chef.dishPhotos.map((img, i) => (
-                  <div key={i} className="aspect-[185/109] w-full relative rounded-md overflow-hidden">
-                    <Image
-                      src={img}
-                      alt={`Dish ${i + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
       </div>
+
+      {/* About */}
+      <Panel title={t("profile.about")}>
+        <p className="text-sm leading-relaxed text-gray-700">{candidate.about}</p>
+      </Panel>
+
+      {/* Skills */}
+      {candidate.skills?.length > 0 && (
+        <Panel title={t("profile.skills")}>
+          <div className="flex flex-wrap gap-2">
+            {candidate.skills.map((skillId) => {
+              const skill = REQUIREMENT_BY_ID[skillId];
+              if (!skill) return null;
+              return (
+                <span
+                  key={skillId}
+                  className="rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand-dark"
+                >
+                  {pick(skill)}
+                </span>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
+
+      {/* Training */}
+      {candidate.training?.length > 0 && (
+        <Panel title={t("profile.training")}>
+          <ul className="space-y-4">
+            {candidate.training.map((row, i) => (
+              <TimelineRow
+                key={i}
+                icon={GraduationCap}
+                title={row.diploma}
+                subtitle={row.school}
+                period={`${row.from} – ${row.to}`}
+              />
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {/* Work history */}
+      {candidate.history?.length > 0 && (
+        <Panel title={t("profile.workHistory")}>
+          <ul className="space-y-4">
+            {candidate.history.map((row, i) => (
+              <TimelineRow
+                key={i}
+                icon={Building2}
+                title={row.position}
+                subtitle={row.establishment}
+                period={`${row.from} – ${row.to}`}
+              />
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {/* Food photos */}
+      {candidate.foodPhotos?.length > 0 && (
+        <Panel title={t("profile.foodPhotos")}>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            {candidate.foodPhotos.map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={src} alt="" className="aspect-square w-full rounded-lg object-cover" />
+            ))}
+          </div>
+        </Panel>
+      )}
+
+      {candidate.hasCv && (
+        <Panel title={t("profile.cv")}>
+          <span className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700">
+            <FileText size={15} className="text-brand" />
+            CV — {candidate.name}.pdf
+          </span>
+        </Panel>
+      )}
     </div>
+  );
+}
+
+function Meta({ icon: Icon, children }) {
+  return (
+    <span className="flex items-center gap-1.5 text-gray-600">
+      <Icon size={14} />
+      {children}
+    </span>
+  );
+}
+
+function Panel({ title, children }) {
+  return (
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
+      <h2 className="mb-3 text-base font-semibold text-gray-900">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function TimelineRow({ icon: Icon, title, subtitle, period }) {
+  return (
+    <li className="flex gap-3">
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+        <Icon size={16} />
+      </span>
+      <div className="min-w-0">
+        <p className="font-medium text-gray-900">{title}</p>
+        <p className="text-sm text-gray-600">{subtitle}</p>
+        <p className="text-xs text-gray-400">{period}</p>
+      </div>
+    </li>
   );
 }

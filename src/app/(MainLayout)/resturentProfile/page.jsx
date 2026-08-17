@@ -1,194 +1,179 @@
 "use client";
 
-import Image from "next/image";
+// Employer profile as candidates see it.
+//
+// Change Requirements 08: the phone number is hidden unless the employer has
+// explicitly turned display on — this page is the proof of that rule, so it
+// reads `phonePublic` rather than printing the number unconditionally.
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
-  ArrowLeft,
-  BadgeCheck,
-  Facebook,
-  Pencil,
-  Phone,
-  Briefcase,
+  MapPin, Mail, Phone, BadgeCheck, Pencil, Search, Plus,
+  Instagram, Linkedin, Globe, Users, Building2, EyeOff,
 } from "lucide-react";
 
-import cover from "../../../assets/cover.png";
-import profile from "../../../assets/profile.png";
-import { FaEdit, FaFacebook } from "react-icons/fa";
-import Link from "next/link";
+import { useLocale, useT } from "@/i18n/LocaleProvider";
+import { fetchCurrentEmployer, fetchEmployerJobs } from "@/mock/api";
+import { getCity } from "@/mock/cities";
+import { ESTABLISHMENT_TYPES } from "@/mock/jobOptions";
+import JobCard from "@/app/component/allJobs/JobCard";
+import EmptyState from "@/app/component/ui/EmptyState";
 
-export default function ProfilePage() {
+export default function EmployerProfilePage() {
+  const t = useT();
+  const { pick } = useLocale();
+
+  const [employer, setEmployer] = useState(null);
+  const [jobs, setJobs] = useState(null);
+
+  useEffect(() => {
+    fetchCurrentEmployer().then(setEmployer);
+    fetchEmployerJobs().then(setJobs);
+  }, []);
+
+  if (!employer) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-16">
+        <div className="h-48 animate-pulse rounded-xl bg-gray-100" />
+      </div>
+    );
+  }
+
+  const city = getCity(employer.city);
+  const type = ESTABLISHMENT_TYPES.find((e) => e.id === employer.type);
+
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8 font-poppins">
-      <div className="max-w-6xl mx-auto">
-        {/* Top Back Nav */}
-        <Link href={'/resturentDashboard'}>
-        <div className="flex items-center mb-4">
-          <ArrowLeft className="w-5 h-5 text-gray-600 mr-2" />
-          <span className="text-sm text-gray-600 font-medium">Profile</span>
-        </div>
-        </Link>
-
-        {/* Profile Header */}
-     <div className="relative w-full  mx-auto   overflow-hidden">
-      {/* Cover Photo */}
-      <div className="relative w-full h-40 sm:h-48 md:h-56 rounded-lg ">
-        <Image
-          src={cover}
-          alt="Cover Photo"
-          fill
-          className="object-cover w-full h-full"
-        />
-      </div>
-
-      {/* Profile Info Section */}
-      <div className="flex items-center justify-between ">
-<div className="flex items-center px-1 sm:px-6 md:px-8 pb-6 pt-4 relative z-10">
-            {/* Profile Image with Verified Badge */}
-        <div className="relative -mt-12 sm:-mt-16">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4  ">
-            <Image
-              src={profile}
-              alt="Profile"
-              fill
-              className="object-cover rounded-full"
-            />
-          </div>
-
-          {/* Verified Badge */}
-          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-green-100 text-green-800 px-3 py-0.5 rounded-full flex items-center gap-1 text-xs shadow-sm border border-green-200">
-            <BadgeCheck className="w-4 h-4" />
-            Veryfied
-          </div>
+    <div className="mx-auto max-w-5xl px-4 py-10 font-poppins">
+      {/* Cover + identity */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="relative h-40 sm:h-52">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={employer.cover} alt="" className="h-full w-full object-cover" />
         </div>
 
-        {/* Name and Social */}
-        <div className="ml-4 sm:ml-6 mt-2">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
-            The Cafe Rio
-          </h2>
-          <div className="flex items-center text-sm text-gray-600 mt-1">
-            <FaFacebook className="w-4 h-4 text-blue-600 mr-1" />
-            Facebook
-          </div>
-        </div>
-</div>
-<div >
-    <Link href={'/editOwnerProfile'}>
-    <button className="text-[#305DEC] flex items-center justify-center font-bold gap-1">Edit Profile <FaEdit className="text-[#305DEC] w-8"/></button>
-    </Link>
-</div>
-      </div>
-    </div>
+        <div className="p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={employer.logo}
+                alt=""
+                className="-mt-14 h-20 w-20 shrink-0 rounded-xl border-4 border-white object-cover shadow-sm"
+              />
+              <div>
+                <h1 className="flex items-center gap-1.5 text-xl font-bold text-gray-900 sm:text-2xl">
+                  {employer.name}
+                  {employer.verified && <BadgeCheck size={18} className="text-brand" />}
+                </h1>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-500">
+                  <Meta icon={Building2}>{pick(type)}</Meta>
+                  <Meta icon={MapPin}>{pick(city)}</Meta>
+                  <Meta icon={Users}>{employer.staffCount}</Meta>
+                </div>
+              </div>
+            </div>
 
-        {/* Info Sections */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-16">
-          {/* Restaurant Info */}
-          <div className="bg-white rounded-lg shadow-sm p-4 text-sm">
-            <h3 className="text-green-600 font-semibold mb-3">
-              Restaurant Information
-            </h3>
-            <div className="space-y-2 text-gray-700">
-              <div className="flex gap-3">
-                <span className="font-medium w-28">City:</span>
-                <span>Kansas City, KS</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="font-medium w-28">Address:</span>
-                <span>Suite 756 031 Ines Riverway</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="font-medium w-28">Business Email:</span>
-                <span>Willie.Jennings@Example.Com</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="font-medium w-28">Phone Number:</span>
-                <span>(+33)7 45 55 87 71</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="font-medium w-28">Busineses Type:</span>
-                <span>Casablanca</span>
-              </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                href="/editOwnerProfile"
+                className="flex items-center justify-center gap-1.5 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                <Pencil size={15} />
+                {t("employer.editProfile")}
+              </Link>
+              <Link
+                href="/jobPost"
+                className="flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-dark"
+              >
+                <Plus size={15} />
+                {t("employer.postJob")}
+              </Link>
             </div>
           </div>
 
-          {/* Contact Box */}
-          <div className="bg-white rounded-lg shadow-sm p-4 ">
-              <h3 className="text-green-600 font-semibold mb-3 text-start">
-             Contact
-            </h3>
-      <div className="flex flex-col items-center text-center">
-              <Phone className="w-8 h-8 text-gray-400 mb-3" />
-            <p className="text-sm text-gray-600 mb-3">
-              Contact info reserved for restaurants
-            </p>
-            <button className="bg-orange-500 text-white text-sm px-4 py-2 rounded-md hover:bg-orange-600 transition">
-              Access contacts
-            </button>
-      </div>
+          <p className="mt-5 text-sm leading-relaxed text-gray-700">{employer.about}</p>
+
+          {/* Contact — phone respects the privacy toggle */}
+          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-gray-100 pt-4 text-sm">
+            <Meta icon={Mail}>{employer.email}</Meta>
+            {employer.phonePublic ? (
+              <Meta icon={Phone}>{employer.phone}</Meta>
+            ) : (
+              <span className="flex items-center gap-1.5 text-gray-400">
+                <EyeOff size={14} />
+                {t("employer.phonePublicHint")}
+              </span>
+            )}
           </div>
 
-          {/* Statistics */}
-          <div className="bg-white rounded-lg shadow-sm p-4 text-sm">
-            <h3 className="text-green-600 font-semibold mb-3">
-              Statistics Section
-            </h3>
-            <div className="space-y-2 text-gray-700">
-              <div className="flex">
-                <span className="font-medium w-28">Viewed:</span>
-                <span>24 Times</span>
-              </div>
-              <div className="flex">
-                <span className="font-medium w-28">Since:</span>
-                <span>January 2024</span>
-              </div>
-              <div className="flex">
-                <span className="font-medium w-28">Total Chefs:</span>
-                <span>24</span>
-              </div>
-            </div>
+          {/* Socials */}
+          <div className="mt-4 flex gap-2">
+            {employer.socials.instagram && (
+              <Social icon={Instagram} href={`https://instagram.com/${employer.socials.instagram}`} />
+            )}
+            {employer.socials.linkedin && (
+              <Social
+                icon={Linkedin}
+                href={`https://linkedin.com/company/${employer.socials.linkedin}`}
+              />
+            )}
+            {employer.socials.website && <Social icon={Globe} href={employer.socials.website} />}
           </div>
+
+          {/* Find the Best Profiles leads to the search filters (Change Req 09). */}
+          <Link
+            href="/jobProfile"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-md border border-brand px-5 py-2.5 text-sm font-semibold text-brand transition hover:bg-brand-soft sm:w-auto"
+          >
+            <Search size={16} />
+            {t("employer.findBestProfiles")}
+          </Link>
         </div>
-
-{/* Recent Jobs */}
-<div className="bg-white rounded-lg shadow-sm p-4 mt-8">
-  <div className="flex items-center mb-4">
-    <Briefcase className="w-5 h-5 text-gray-700 mr-2" />
-    <h3 className="text-base font-semibold text-gray-800">
-      My Recent Published Jobs
-    </h3>
-  </div>
-
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-    {[...Array(4)].map((_, i) => (
-      <div
-        key={i}
-        className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm"
-      >
-        {/* Top: Title + View */}
-        <div className="flex justify-between items-start mb-2">
-          <p className="text-sm font-semibold text-gray-800">
-            Chef specializing in Moroccan cuisine
-          </p>
-          <button className="bg-blue-100 text-blue-600 text-sm px-4 py-1 rounded-full font-medium hover:bg-blue-200 transition">
-            View
-          </button>
-        </div>
-
-        {/* Company */}
-        <p className="text-sm text-gray-500">The King&apos;s Table</p>
-
-        {/* Applied Count */}
-        <p className="text-sm text-gray-600 mt-1">Total Applied 02</p>
-
-        {/* Deadline */}
-        <p className="text-sm text-orange-500 font-medium mt-1">
-          Deadline : 06-28-205
-        </p>
       </div>
-    ))}
-  </div>
-</div>
 
-      </div>
+      {/* Active offers */}
+      <section className="mt-8">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">{t("employer.activeOffers")}</h2>
+
+        {jobs === null ? (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="h-56 animate-pulse rounded-xl bg-gray-100" />
+            ))}
+          </div>
+        ) : jobs.active.length === 0 ? (
+          <EmptyState title={t("common.noResults")} />
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {jobs.active.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
+  );
+}
+
+function Meta({ icon: Icon, children }) {
+  return (
+    <span className="flex items-center gap-1.5 text-gray-600">
+      <Icon size={14} />
+      {children}
+    </span>
+  );
+}
+
+function Social({ icon: Icon, href }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition hover:bg-brand-soft hover:text-brand"
+    >
+      <Icon size={16} />
+    </a>
   );
 }

@@ -1,59 +1,73 @@
-'use client'
-import { useRouter } from 'next/navigation';
-import React from 'react';
-import { useForm } from 'react-hook-form';
+"use client";
 
-const EnterEmailForm = () => {
-    const router = useRouter();
+// Password reset entry point. Change Requirements 05: reset works by email, and
+// a WhatsApp route is offered as an additional option to explore.
+
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
+import { Mail, MessageCircle } from "lucide-react";
+
+import AuthShell, { Divider } from "@/app/component/auth/AuthShell";
+import { Field, Input } from "@/app/component/ui/Fields";
+import { useT } from "@/i18n/LocaleProvider";
+
+export default function SendEmailPage() {
+  const t = useT();
+  const router = useRouter();
   const {
     register,
     handleSubmit,
-    formState: { errors }
+    formState: { errors, isSubmitting },
   } = useForm();
 
-  const onSubmit = data => {
-    console.log('Email submitted:', data);
-    router.push('/verifyCode')
+  const onSubmit = (data) => {
+    router.push(`/verifyCode?target=${encodeURIComponent(data.email)}`);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-md bg-white p-8 rounded-2xl shadow-md"
-      >
-        {/* Title */}
-        <h2 className="text-center text-2xl font-semibold text-gray-800 mb-2">
-          Enter your email
-        </h2>
-        <p className="text-center text-gray-500 mb-6 text-sm">
-          Please enter your email
-        </p>
-
-        {/* Email Field */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <input
+    <AuthShell
+      title={t("auth.sendEmailTitle")}
+      subtitle={t("auth.sendEmailSubtitle")}
+      footer={
+        <Link href="/signIn" className="font-medium text-accent hover:underline">
+          {t("common.back")}
+        </Link>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Field label={t("auth.email")} required error={errors.email?.message}>
+          <Input
             type="email"
-            placeholder="Enter your email"
-            {...register('email', { required: 'Email is required' })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
+            error={errors.email}
+            placeholder="nom@exemple.ma"
+            {...register("email", {
+              required: t("common.required"),
+              pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t("common.required") },
+            })}
           />
-          {errors.email && (
-            <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
-          )}
-        </div>
+        </Field>
 
-        {/* Submit Button */}
         <button
           type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-md font-semibold transition duration-200"
+          disabled={isSubmitting}
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-accent py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark disabled:opacity-60"
         >
-          Next
+          <Mail size={16} />
+          {t("auth.sendCode")}
         </button>
       </form>
-    </div>
-  );
-};
 
-export default EnterEmailForm;
+      <Divider label={t("auth.or")} />
+
+      <button
+        type="button"
+        onClick={() => router.push("/verifyCode?channel=whatsapp")}
+        className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+      >
+        <MessageCircle size={16} className="text-brand" />
+        {t("auth.resetViaWhatsapp")}
+      </button>
+    </AuthShell>
+  );
+}

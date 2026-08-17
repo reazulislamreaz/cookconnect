@@ -1,157 +1,180 @@
-"use client"
+"use client";
 
-import { Card, Progress, Button } from "antd"
-import { User, Pencil, Eye, Search, Lock, Users, Briefcase, Award } from "lucide-react"
+// Candidate dashboard: profile completeness, applications and recommendations.
+// The completeness meter doubles as the entry point to the "Incomplete Profile"
+// flow from Change Requirements section 06.
 
-import DashboardCard from "../../component/dashboard/DashboardCard"
-import ApplicationCard from "../../component/dashboard/ApplicationCard"
-import Link from "next/link"
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Send, Eye, Bookmark, AlertTriangle, ArrowRight } from "lucide-react";
 
-export const dashboardStats = [
-  {
-    id: 1,
-    icon: <Users className="h-8 w-8 text-blue-500" />,
-    percentage: "85%",
-    label: "Complete Profile",
-    bgColor: "bg-blue-50",
-  },
-  {
-    id: 2,
-    icon: <Eye className="h-8 w-8 text-green-500" />,
-    percentage: "85%",
-    label: "Profile Views",
-    bgColor: "bg-green-50",
-  },
-  {
-    id: 3,
-    icon: <Briefcase className="h-8 w-8 text-orange-500" />,
-    percentage: "85%",
-    label: "Applications",
-    bgColor: "bg-orange-50",
-  },
-  {
-    id: 4,
-    icon: <Award className="h-8 w-8 text-lime-500" />,
-    percentage: "85%",
-    label: "Profile Status",
-    bgColor: "bg-lime-50",
-  },
-]
+import { useLocale, useT } from "@/i18n/LocaleProvider";
+import { fetchCurrentCandidate, fetchMyApplications, fetchFeaturedJobs } from "@/mock/api";
+import { getProfileCompletion } from "@/lib/profileCompletion";
+import { APPLICATION_STATUS } from "@/mock/applications";
+import { getCity } from "@/mock/cities";
+import EmptyState from "@/app/component/ui/EmptyState";
+import JobCard from "@/app/component/allJobs/JobCard";
 
-export const applications = [
-  {
-    id: 1,
-    title: "Chef specializing in Moroccan cuisine",
-    company: "The King's Table",
-    appliedDate: "01/25/2024",
-  },
-  {
-    id: 2,
-    title: "Chef specializing in Moroccan cuisine",
-    company: "The King's Table",
-    appliedDate: "01/25/2024",
-  },
-  {
-    id: 3,
-    title: "Pastry Chef for French desserts",
-    company: "Sweet Delights Bakery",
-    appliedDate: "02/10/2024",
-  },
-]
+const TONES = {
+  amber: "bg-amber-50 text-amber-700",
+  green: "bg-brand-soft text-brand-dark",
+  red: "bg-red-50 text-red-600",
+};
 
-export default function DashboardPage() {
+export default function CandidateDashboard() {
+  const t = useT();
+  const { pick, locale } = useLocale();
+
+  const [profile, setProfile] = useState(null);
+  const [applications, setApplications] = useState(null);
+  const [recommended, setRecommended] = useState([]);
+
+  useEffect(() => {
+    fetchCurrentCandidate().then(setProfile);
+    fetchMyApplications().then(setApplications);
+    fetchFeaturedJobs(3).then(setRecommended);
+  }, []);
+
+  const completion = useMemo(() => getProfileCompletion(profile), [profile]);
+
+  const stats = [
+    { icon: Send, value: applications?.length ?? 0, labelKey: "dashboard.stats.applications" },
+    { icon: Eye, value: 148, labelKey: "dashboard.stats.views" },
+    { icon: Bookmark, value: 6, labelKey: "dashboard.stats.saved" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6 font-poppins">
-      <div className="container mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800">Hello ahmed benjelloun.com!</h1>
-        <p className="mt-2 text-gray-600">Manage your profile and track your applications</p>
+    <div className="mx-auto max-w-7xl px-4 py-10 font-poppins">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+          {profile ? t("dashboard.welcome", { name: profile.firstName }) : t("dashboard.title")}
+        </h1>
+      </header>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {dashboardStats.map((stat) => (
-            <DashboardCard
-              key={stat.id}
-              icon={stat.icon}
-              percentage={stat.percentage}
-              label={stat.label}
-              iconColor={stat.iconColor}
-              bgColor={stat.bgColor}
-            />
+      {/* Profile completeness */}
+      <section className="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-medium text-gray-800">{t("dashboard.profileStrength")}</span>
+          <span className="text-sm font-semibold text-gray-900">{completion.percent}%</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className={`h-full rounded-full transition-all ${
+              completion.isComplete ? "bg-brand" : "bg-amber-500"
+            }`}
+            style={{ width: `${completion.percent}%` }}
+          />
+        </div>
+
+        {!completion.isComplete && (
+          <div className="mt-4 flex flex-col gap-3 rounded-md bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-start gap-2 text-sm text-amber-800">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              {t("profile.incompleteBody")}
+            </p>
+            <Link
+              href="/editProfile"
+              className="shrink-0 rounded-md bg-amber-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-amber-700"
+            >
+              {t("profile.incompleteCta")}
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* Stats */}
+      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {stats.map(({ icon: Icon, value, labelKey }) => (
+          <div key={labelKey} className="rounded-xl border border-gray-200 bg-white p-5">
+            <Icon size={20} className="mb-3 text-brand" />
+            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <p className="mt-0.5 text-sm text-gray-600">{t(labelKey)}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Applications */}
+      <section className="mb-8">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">{t("dashboard.myApplications")}</h2>
+
+        {applications === null ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-xl bg-gray-100" />
+            ))}
+          </div>
+        ) : applications.length === 0 ? (
+          <EmptyState
+            title={t("dashboard.noApplications")}
+            action={
+              <Link
+                href="/allJobs"
+                className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                {t("dashboard.browseOffers")}
+              </Link>
+            }
+          />
+        ) : (
+          <ul className="space-y-3">
+            {applications.map((app) => {
+              const status = APPLICATION_STATUS[app.status];
+              const city = getCity(app.job?.city);
+              return (
+                <li
+                  key={app.id}
+                  className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={app.job?.logo} alt="" className="h-11 w-11 rounded-lg object-cover" />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-gray-900">
+                        {locale === "ar" ? app.job?.titleAr : app.job?.title}
+                      </p>
+                      <p className="truncate text-sm text-gray-500">
+                        {app.job?.employerName} · {pick(city)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${TONES[status.tone]}`}>
+                      {pick(status)}
+                    </span>
+                    <Link
+                      href={`/allJobs/${app.jobId}`}
+                      className="text-sm font-medium text-accent hover:underline"
+                    >
+                      {t("common.seeOffer")}
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Recommendations */}
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">{t("dashboard.recommended")}</h2>
+          <Link
+            href="/allJobs"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-accent hover:underline"
+          >
+            {t("home.seeAllOffers")}
+            <ArrowRight size={14} className="rtl:rotate-180" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {recommended.map((job) => (
+            <JobCard key={job.id} job={job} />
           ))}
         </div>
-
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-1 space-y-6">
-            <Card title={<span className="flex items-center space-x-2"><User className="h-5 w-5 text-gray-700" /><span>My Profile</span></span>} bordered>
-              <p className="text-sm text-gray-600">Complete Profile</p>
-              <Progress percent={85} showInfo={false} className="mt-2" />
-              <div className="mt-4 flex items-center text-sm text-green-600">
-                <Award className="mr-1 h-4 w-4" />
-                <span>Verified Profile</span>
-              </div>
-              <div className="mt-6 space-y-3">
-                   <Link href={'/editProfile'}>
-                <Button block icon={<Pencil className="h-4 w-4 my-3" />} className="text-left">
-                  Edit my profiles
-                </Button>
-                   </Link>
-                <Link href={'/jobProfile/1'}>
-                
-                <Button block icon={<Eye className="h-4 w-4" />} className="text-left">
-                  View my public profile
-                </Button>
-                </Link>
-              </div>
-            </Card>
-
-            <Card title={<span className="flex items-center space-x-2"><User className="h-5 w-5 text-gray-700" /><span>Quick Actions</span></span>} bordered>
-              <div className="space-y-3">
-                   <Link href={'/jobProfile'}>
-                   
-                <Button block icon={<Eye className="h-4 w-4 my-3" />} className="text-left">
-                  View profiles
-                </Button>
-                   </Link>
-                      <Link href={'/allJobs'}>
-                <Button block icon={<Search className="h-4 w-4" />} className="text-left">
-                  Search for offers
-                </Button>
-                      </Link>
-              </div>
-            </Card>
-          </div>
-
-          <div className="lg:col-span-2">
-            <Card
-              title={
-                <div className="flex items-center space-x-2">
-                  <Lock className="h-5 w-5 text-gray-700" />
-                  <span className="font-semibold text-lg">My Applications</span>
-                </div>
-              }
-              extra={
-                   <Link href={'/allJobs'}>
-
-                <Button className="text-gray-600 hover:text-gray-800 text-sm">
-                  See all offers
-                </Button>
-                   </Link>
-              }
-              bordered
-            >
-              <div className="space-y-4">
-                {applications.map((app) => (
-                  <ApplicationCard
-                    key={app.id}
-                    title={app.title}
-                    company={app.company}
-                    appliedDate={app.appliedDate}
-                  />
-                ))}
-              </div>
-            </Card>
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
-  )
+  );
 }

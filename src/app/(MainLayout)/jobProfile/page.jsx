@@ -1,229 +1,221 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Search, SlidersHorizontal, Bookmark, Award, Eye } from "lucide-react"
-import { Input, Select } from "antd"
-import Pagination from "../../component/allJobs/pagination"
-import Image from "next/image"
-import { TiLocationOutline } from "react-icons/ti"
-import { CiStar } from "react-icons/ci"
-import chef from '../../../assets/Ellipse 3.png'
-import BestProfile from "../../component/allJobs/BestProfile"
-import Link from "next/link"
-const { Option } = Select
+// "Find Profiles" — the employer-facing candidate search.
+//
+// ClientDoc section 6: candidate profile search filters are city, sector, job
+// and experience. Change Requirements 07: 12 profiles per page, plus the same
+// "Search All" shortcut as the offers page. Section 03: guests see page 1 only.
 
-const sampleCandidates = Array.from({ length: 24 }, (_, index) => ({
-  id: index + 1,
-  name: "Amina Benali",
-  position: "Chef",
-  location: "Casablanca",
-  experience: "8 Years Of Experience",
-  specialties: ["Moroccan Cuisine", "French Cuisine"],
-  image:chef,
-}))
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Search, SlidersHorizontal, RotateCcw, Zap } from "lucide-react";
 
-export default function JobDashboardPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterOpen, setFilterOpen] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [city, setCity] = useState(null)
-  const [experience, setExperience] = useState(null)
-  const [job, setJob] = useState(null)
-  const [specialty, setSpecialty] = useState(null)
+import { useT } from "@/i18n/LocaleProvider";
+import { useSession } from "@/lib/session";
+import { searchCandidates } from "@/mock/api";
+import { SECTORS, getPositions } from "@/mock/sectors";
+import { CITIES, COUNTRY } from "@/mock/cities";
+import { EXPERIENCE_LEVELS, AVAILABILITY } from "@/mock/jobOptions";
+import { SAVED_PROFILES } from "@/mock/applications";
+import { FilterSelect, Input } from "@/app/component/ui/Fields";
+import CandidateCard from "@/app/component/allJobs/CandidateCard";
+import Pagination from "@/app/component/ui/Pagination";
+import EmptyState, { CardSkeleton } from "@/app/component/ui/EmptyState";
 
-  const candidatesPerPage = 12
+const INITIAL = {
+  q: "",
+  city: "all",
+  sectorId: "all",
+  positionId: "all",
+  experience: "all",
+  availability: "all",
+};
 
-  const filteredCandidates = sampleCandidates.filter((candidate) => {
-    const matchesSearch =
-      candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      candidate.position.toLowerCase().includes(searchTerm.toLowerCase())
+const SAVED_IDS = new Set(SAVED_PROFILES.map((s) => s.candidateId));
 
-    const matchesCity = city ? candidate.location === city : true
-    const matchesExperience = experience ? candidate.experience === experience : true
-    const matchesJob = job ? candidate.position === job : true
-    const matchesSpecialty = specialty
-      ? candidate.specialties.includes(specialty)
-      : true
+export default function FindProfilesPage() {
+  const t = useT();
+  const { isLoggedIn } = useSession();
 
-    return (
-      matchesSearch &&
-      matchesCity &&
-      matchesExperience &&
-      matchesJob &&
-      matchesSpecialty
-    )
-  })
+  const [filters, setFilters] = useState(INITIAL);
+  const [page, setPage] = useState(1);
+  const [searchAll, setSearchAll] = useState(false);
+  const [result, setResult] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
 
-  const totalPages = Math.ceil(filteredCandidates.length / candidatesPerPage)
-  const indexOfLastCandidate = currentPage * candidatesPerPage
-  const indexOfFirstCandidate = indexOfLastCandidate - candidatesPerPage
-  const currentCandidates = filteredCandidates.slice(indexOfFirstCandidate, indexOfLastCandidate)
+  const positions = useMemo(
+    () => (filters.sectorId === "all" ? [] : getPositions(filters.sectorId)),
+    [filters.sectorId]
+  );
 
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber)
-  }
+  const load = useCallback(async () => {
+    setResult(null);
+    setResult(await searchCandidates({ ...filters, page, isLoggedIn, searchAll }));
+  }, [filters, page, isLoggedIn, searchAll]);
 
-  const handleClearFilters = () => {
-    setCity(null)
-    setExperience(null)
-    setJob(null)
-    setSpecialty(null)
-    setSearchTerm("")
-    setFilterOpen(false)
-  }
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const setFilter = (key, value) => {
+    setPage(1);
+    setSearchAll(false);
+    setFilters((f) =>
+      key === "sectorId" ? { ...f, sectorId: value, positionId: "all" } : { ...f, [key]: value }
+    );
+  };
 
   return (
-    <div>
-      <BestProfile />
-      <div className="min-h-screen bg-gray-50 p-6 font-poppins">
-        <div className="container mx-auto">
-          <div className="bg-white border border-gray-300 p-4 rounded-md mb-8 transition-all duration-300">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="relative flex-1 w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search here..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <button
-                onClick={() => setFilterOpen(!filterOpen)}
-                className="flex items-center space-x-2 px-4 py-2 border rounded-md bg-white hover:bg-gray-100"
-              >
-                <SlidersHorizontal className="h-5 w-5" />
-                <span>Advance Filters</span>
-              </button>
-            </div>
+    <div className="mx-auto max-w-7xl px-4 py-10 font-poppins">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{t("candidates.title")}</h1>
+        {result && (
+          <p className="mt-1 text-sm text-gray-600">
+            {t("candidates.subtitle", { n: result.total })}
+          </p>
+        )}
+      </header>
 
-            {filterOpen && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">City</label>
-                  <Select
-                    className="w-full"
-                    placeholder="Select your city"
-                    value={city}
-                    onChange={(value) => setCity(value)}
-                    allowClear
-                  >
-                    <Option value="Casablanca">Casablanca</Option>
-                    <Option value="Marrakech">Marrakech</Option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Job</label>
-                  <Select
-                    className="w-full"
-                    placeholder="Select..."
-                    value={job}
-                    onChange={(value) => setJob(value)}
-                    allowClear
-                  >
-                    <Option value="Chef">Chef</Option>
-                    <Option value="Manager">Manager</Option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Specialty</label>
-                  <Select
-                    className="w-full"
-                    placeholder="Select..."
-                    value={specialty}
-                    onChange={(value) => setSpecialty(value)}
-                    allowClear
-                  >
-                    <Option value="Moroccan Cuisine">Moroccan Cuisine</Option>
-                    <Option value="French Cuisine">French Cuisine</Option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Experience</label>
-                  <Select
-                    className="w-full"
-                    placeholder="Select..."
-                    value={experience}
-                    onChange={(value) => setExperience(value)}
-                    allowClear
-                  >
-                    <Option value="8 Years Of Experience">8 Years Of Experience</Option>
-                    <Option value="5 Years of Experience">5 Years of Experience</Option>
-                  </Select>
-                </div>
-              </div>
-            )}
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search size={17} className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input
+            value={filters.q}
+            onChange={(e) => setFilter("q", e.target.value)}
+            placeholder={t("candidates.searchPlaceholder")}
+            className="ps-10"
+          />
+        </div>
 
-            {filterOpen && (
-              <div className="flex justify-end mt-2">
-                <button
-                  onClick={handleClearFilters}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
-          </div>
+        <button
+          onClick={() => {
+            setFilters(INITIAL);
+            setSearchAll(true);
+            setPage(1);
+          }}
+          title={t("jobs.searchAllHint")}
+          className="flex items-center justify-center gap-2 rounded-md bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark"
+        >
+          <Zap size={16} />
+          {t("common.searchAll")}
+        </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentCandidates.map((candidate) => (
-              <div key={candidate.id} className="bg-white p-4 rounded-xl shadow border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="relative w-14 h-14">
-                      <Image
-                        src={candidate.image}
-                        alt="avatar"
-                        width={56}
-                        height={56}
-                        className="w-14 h-14 rounded-full object-cover"
-                      />
-                      <span className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-xs p-1 rounded-full">
-                        <Award className="w-4 h-4"/>
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-base text-gray-900">{candidate.name}</p>
-                      <p className="text-sm text-gray-500">{candidate.position}</p>
-                    </div>
-                  </div>
-                  <button className="text-gray-500 flex items-center gap-1">
-                    <Bookmark className="w-5 h-5" />
-                    <span className="text-sm">Save</span>
-                  </button>
-                </div>
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className="flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 lg:hidden"
+        >
+          <SlidersHorizontal size={16} />
+          {t("common.filters")}
+        </button>
+      </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                  <TiLocationOutline />
-                  <span>{candidate.location}</span>
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
-                  <CiStar />
-                  <span>{candidate.experience}</span>
-                </div>
+      <div
+        className={`mb-8 grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4 ${
+          showFilters ? "grid" : "hidden lg:grid"
+        }`}
+      >
+        <Cell label={t("common.country")}>
+          <Input value={COUNTRY.fr} disabled readOnly />
+        </Cell>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {candidate.specialties.map((spec, idx) => (
-                    <span key={idx} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs">
-                      {spec}
-                    </span>
-                  ))}
-                </div>
-<Link href={`/jobProfile/${candidate?.id}`}>
+        <Cell label={t("common.city")}>
+          <FilterSelect
+            options={CITIES}
+            allLabel={t("common.all")}
+            value={filters.city}
+            onChange={(v) => setFilter("city", v)}
+          />
+        </Cell>
 
-                <button className="w-full mt-4 flex items-center justify-center gap-2 bg-orange-500 text-white text-sm py-2 rounded-md hover:bg-orange-600">
-                  <Eye className="w-4"/> View Full Profile
-                </button>
-</Link>
-              </div>
+        <Cell label={t("common.sector")}>
+          <FilterSelect
+            options={SECTORS}
+            allLabel={t("common.all")}
+            value={filters.sectorId}
+            onChange={(v) => setFilter("sectorId", v)}
+          />
+        </Cell>
+
+        <Cell
+          label={t("common.position")}
+          hint={filters.sectorId === "all" ? t("common.selectFirst") : undefined}
+        >
+          <FilterSelect
+            options={positions}
+            allLabel={t("common.all")}
+            value={filters.positionId}
+            onChange={(v) => setFilter("positionId", v)}
+          />
+        </Cell>
+
+        <Cell label={t("common.experience")}>
+          <FilterSelect
+            options={EXPERIENCE_LEVELS}
+            allLabel={t("common.all")}
+            value={filters.experience}
+            onChange={(v) => setFilter("experience", v)}
+          />
+        </Cell>
+
+        <Cell label={t("common.availability")}>
+          <FilterSelect
+            options={AVAILABILITY}
+            allLabel={t("common.all")}
+            value={filters.availability}
+            onChange={(v) => setFilter("availability", v)}
+          />
+        </Cell>
+
+        <div className="flex items-end lg:col-span-2">
+          <button
+            onClick={() => {
+              setFilters(INITIAL);
+              setSearchAll(false);
+              setPage(1);
+            }}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+          >
+            <RotateCcw size={15} />
+            {t("common.reset")}
+          </button>
+        </div>
+      </div>
+
+      {result === null ? (
+        <CardSkeleton count={6} />
+      ) : result.items.length === 0 ? (
+        <EmptyState title={t("common.noResults")} body={t("common.noResultsHint")} />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {result.items.map((candidate) => (
+              <CandidateCard
+                key={candidate.id}
+                candidate={candidate}
+                initiallySaved={SAVED_IDS.has(candidate.id)}
+              />
             ))}
           </div>
 
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
-        </div>
-      </div>
+          <Pagination
+            page={result.page}
+            totalPages={result.totalPages}
+            visiblePages={result.visiblePages}
+            onChange={setPage}
+          />
+        </>
+      )}
     </div>
-  )
+  );
+}
+
+function Cell({ label, hint, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-gray-500">
+        {label}
+        {hint && <span className="ms-1 text-gray-400">({hint})</span>}
+      </span>
+      {children}
+    </label>
+  );
 }

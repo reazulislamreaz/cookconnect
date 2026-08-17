@@ -1,94 +1,88 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import React, { useState } from "react"
+// Notifications list. Change Requirements section 12: profile/offer approvals,
+// reminder nudges and feedback replies all appear in-app as well as by email.
 
-const initialNotifications = [
-  {
-    id: 1,
-    title: "A new Product is added",
-    message: "Product name, Brand name, Price $1070,000 is added in our collection!",
-    time: "20-Dec-2024, 3:00 PM",
-    isRead: false,
-  },
-  {
-    id: 2,
-    title: "A new Product is added",
-    message: "Product name, Brand name, Price $1070,000 is added in our collection!",
-    time: "20-Dec-2024, 3:00 PM",
-    isRead: false,
-  },
-  {
-    id: 3,
-    title: "A new Product is added",
-    message: "Product name, Brand name, Price $1070,000 is added in our collection!",
-    time: "20-Dec-2024, 3:00 PM",
-    isRead: true,
-  },
-  {
-    id: 4,
-    title: "A new Product is added",
-    message: "Product name, Brand name, Price $1070,000 is added in our collection!",
-    time: "20-Dec-2024, 3:00 PM",
-    isRead: true,
-  },
-  {
-    id: 5,
-    title: "A new Product is added",
-    message: "Product name, Brand name, Price $1070,000 is added in our collection!",
-    time: "20-Dec-2024, 3:00 PM",
-    isRead: true,
-  },
-]
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  BadgeCheck, Briefcase, Send, Clock, Bell, MessageSquare,
+} from "lucide-react";
 
-const NotificationPage = () => {
-  const [notifications, setNotifications] = useState(initialNotifications)
+import { useLocale, useT } from "@/i18n/LocaleProvider";
+import { fetchNotifications } from "@/mock/api";
+import EmptyState from "@/app/component/ui/EmptyState";
 
-  const handleMarkAsRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    )
-  }
+const ICONS = {
+  approval: { icon: BadgeCheck, tone: "bg-brand-soft text-brand" },
+  job: { icon: Briefcase, tone: "bg-accent-tint text-accent" },
+  application: { icon: Send, tone: "bg-blue-50 text-blue-600" },
+  offer: { icon: Clock, tone: "bg-amber-50 text-amber-600" },
+  reminder: { icon: Bell, tone: "bg-gray-100 text-gray-500" },
+  feedback: { icon: MessageSquare, tone: "bg-purple-50 text-purple-600" },
+};
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
-  }
+export default function NotificationsPage() {
+  const t = useT();
+  const { locale } = useLocale();
+  const [items, setItems] = useState(null);
+
+  useEffect(() => {
+    fetchNotifications().then(setItems);
+  }, []);
 
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-8 font-poppins">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">Notifications</h2>
-        <button
-          onClick={markAllAsRead}
-          className="text-sm text-blue-600 hover:underline"
-        >
-          Mark all as read
-        </button>
-      </div>
+    <div className="mx-auto max-w-3xl px-4 py-10 font-poppins">
+      <h1 className="mb-6 text-2xl font-bold text-gray-900 sm:text-3xl">
+        {t("notifications.title")}
+      </h1>
 
-      <div className="space-y-4">
-        {notifications.map((notif) => (
-          <div
-            key={notif.id}
-            onClick={() => handleMarkAsRead(notif.id)}
-            className={`rounded-lg p-4 flex justify-between items-start shadow-sm cursor-pointer transition hover:shadow-md ${
-              notif.isRead ? "bg-white" : "bg-[#E8EFE3]"
-            }`}
-          >
-            <Link href={`/notification/${notif.id}`} className="flex-grow">
-              <div>
-                <p className="font-semibold text-gray-800">{notif.title}</p>
-                <p className="text-sm text-gray-600 mt-1">{notif.message}</p>
-              </div>
-            </Link>
-            <span className="text-sm text-gray-500 whitespace-nowrap pl-4">
-              {notif.time}
-            </span>
-          </div>
-        ))}
-      </div>
+      {items === null ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-xl bg-gray-100" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState icon={Bell} title={t("notifications.empty")} />
+      ) : (
+        <ul className="space-y-3">
+          {items.map((n) => {
+            const { icon: Icon, tone } = ICONS[n.type] || ICONS.reminder;
+            return (
+              <li key={n.id}>
+                <Link
+                  href={`/notification/${n.id}`}
+                  className={`flex gap-3 rounded-xl border p-4 transition hover:shadow-sm ${
+                    n.read ? "border-gray-200 bg-white" : "border-brand/30 bg-brand-soft/40"
+                  }`}
+                >
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone}`}
+                  >
+                    <Icon size={18} />
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium text-gray-900">
+                        {locale === "ar" ? n.titleAr : n.title}
+                      </p>
+                      {!n.read && (
+                        <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-white">
+                          {t("notifications.new")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm text-gray-600">{n.body}</p>
+                    <p className="mt-1.5 text-xs text-gray-400">{n.date}</p>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
-  )
+  );
 }
-
-export default NotificationPage

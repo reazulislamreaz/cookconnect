@@ -1,171 +1,227 @@
-'use client'
-import { CheckCircle, CalendarDays, MapPin, Briefcase, DollarSign, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useState } from 'react';
+"use client";
 
+// Job offer detail.
+//
+// Change Requirements 03 "Smart Redirect on Click": a single Apply button.
+// Guests get the signup gate; signed-in candidates with an incomplete profile
+// get the "Incomplete Profile" banner and are sent to Edit My Profile
+// (Change Requirements 06); everyone else applies.
 
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  MapPin, Briefcase, CalendarDays, Clock, ArrowLeft, Check,
+  AlertTriangle, Building2, Wallet,
+} from "lucide-react";
 
-export default function JobDetailsPage() {
-const [send,setSend]=useState(false)
-    const job = {
-  title: "Looking For A Chef Specializing In Moroccan Cuisine",
-  company: "The King's Table",
-  location: "Casablanca",
-  contractType: "CDI (Permanent Contract)",
-  salaryRange: "8000–12000 MAD",
-  deadlineDate: "02/28/2024",
-  specialties: ["Moroccan Cuisine", "French Cuisine"],
-  fullDescription: [
-    "We are looking for an experienced chef to join our dynamic team in our restaurant located in the heart of Casablanca.",
-    "The ideal candidate will have extensive expertise in traditional Moroccan cuisine while also being able to bring their creativity to modernizing our dishes. You will work in a kitchen equipped with modern equipment and lead a team of three cooks.",
-    "We offer a stimulating work environment with opportunities for advancement and ongoing training. Our restaurant is renowned for the quality of its cuisine and exceptional customer service."
-  ],
-  requirements: [
-    "Minimum 5 Years Of Experience In Moroccan Cuisine",
-    "Diploma In Culinary Arts Or Equivalent",
-    "Ability To Manage A Team",
-    "Creativity And Passion For Cooking",
-    "Availability To Work Evenings And Weekends"
-  ],
-  benefits: [
-    "Competitive Salary With Performance Bonuses",
-    "Continuing Education",
-    "Health Insurance",
-    "Paid Leave",
-    "Meals Provided"
-  ],
-  statistics: {
-    applications: 2,
-    views: 45,
-    publishedSince: "521 Days"
-  },
-  avatarUrl: "/avatar.jpg",
-  avatarInitial: "K",
-  applicationStatus: send
-};
+import { useLocale, useT } from "@/i18n/LocaleProvider";
+import { useSession } from "@/lib/session";
+import { useSignupGate } from "@/app/component/ui/SignupGate";
+import { fetchJob, fetchCurrentCandidate, applyToJob } from "@/mock/api";
+import { getCity } from "@/mock/cities";
+import {
+  REQUIREMENT_BY_ID, BENEFIT_BY_ID, EXPERIENCE_LEVELS,
+  CONTRACT_TYPES, ESTABLISHMENT_TYPES,
+} from "@/mock/jobOptions";
+import { SelectedList } from "@/app/component/ui/CheckboxGroup";
+import { getProfileCompletion } from "@/lib/profileCompletion";
+import EmptyState from "@/app/component/ui/EmptyState";
+
+export default function JobDetailPage() {
+  const t = useT();
+  const { pick, locale } = useLocale();
+  const { id } = useParams();
+  const router = useRouter();
+  const { isLoggedIn, isCandidate } = useSession();
+  const { requireAuth } = useSignupGate();
+
+  const [job, setJob] = useState(undefined);
+  const [profile, setProfile] = useState(null);
+  const [applied, setApplied] = useState(false);
+  const [incomplete, setIncomplete] = useState(false);
+
+  useEffect(() => {
+    fetchJob(id).then(setJob);
+  }, [id]);
+
+  useEffect(() => {
+    if (isCandidate) fetchCurrentCandidate().then(setProfile);
+  }, [isCandidate]);
+
+  const apply = requireAuth(async () => {
+    const completion = getProfileCompletion(profile);
+    if (!completion.isComplete) {
+      setIncomplete(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    await applyToJob(job.id);
+    setApplied(true);
+  });
+
+  if (job === undefined) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-16">
+        <div className="h-8 w-2/3 animate-pulse rounded bg-gray-200" />
+        <div className="mt-6 h-64 animate-pulse rounded-xl bg-gray-100" />
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <EmptyState title={t("common.noResults")} />
+      </div>
+    );
+  }
+
+  const city = getCity(job.city);
+  const experience = EXPERIENCE_LEVELS.find((e) => e.id === job.experience);
+  const contract = CONTRACT_TYPES.find((c) => c.id === job.contractType);
+  const establishment = ESTABLISHMENT_TYPES.find((e) => e.id === job.establishmentType);
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6 font-poppins">
-      <div className="container mx-auto">
-        <Link href="/allJobs" className="flex items-center  text-gray-600 hover:text-gray-800 mb-6">
-        <ArrowLeft className='w-3'/>
-          <span className="text-sm"> Job Details</span>
-        </Link>
+    <div className="mx-auto max-w-4xl px-4 py-10 font-poppins">
+      <Link
+        href="/allJobs"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-accent"
+      >
+        <ArrowLeft size={15} className="rtl:rotate-180" />
+        {t("common.back")}
+      </Link>
 
-        {/* Job Header */}
-        <div className="bg-white p-6 rounded-xl shadow border border-gray-200 mb-6">
-          <div className="flex justify-between items-start gap-4">
+      {/* Incomplete profile warning (Change Req 06) */}
+      {incomplete && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <p className="flex items-start gap-2 text-sm text-amber-900">
+            <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+            <span>
+              <strong className="font-semibold">{t("profile.incompleteTitle")}</strong> —{" "}
+              {t("profile.incompleteBody")}
+            </span>
+          </p>
+          <button
+            onClick={() => router.push("/editProfile")}
+            className="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700"
+          >
+            {t("profile.incompleteCta")}
+          </button>
+        </div>
+      )}
+
+      {applied && (
+        <div className="mb-6 rounded-lg border border-brand/30 bg-brand-soft p-4">
+          <p className="flex items-start gap-2 text-sm text-brand-dark">
+            <Check size={17} className="mt-0.5 shrink-0" strokeWidth={3} />
+            <span>
+              <strong className="font-semibold">{t("jobs.applied")}</strong> — {t("jobs.appliedBody")}
+            </span>
+          </p>
+        </div>
+      )}
+
+      {/* Header card */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={job.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
             <div>
-              <h1 className="text-2xl font-semibold text-gray-800 leading-snug">{job.title}</h1>
-              <p className="text-gray-600 mt-1">{job.company}</p>
-              <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-4">
-                <div className="flex items-center">
-                  <MapPin className="h-4 w-4 mr-1" /> {job.location}
-                </div>
-                <div className="flex items-center">
-                  <Briefcase className="h-4 w-4 mr-1" /> {job.contractType}
-                </div>
-                <div className="flex items-center">
-                  <DollarSign className="h-4 w-4 mr-1" /> {job.salaryRange}
-                </div>
-              </div>
-              <div className="mt-4 text-sm text-red-500 flex items-center">
-                <CalendarDays className="h-4 w-4 mr-1" /> Deadline: {job.deadlineDate}
+              <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
+                {locale === "ar" ? job.titleAr : job.title}
+              </h1>
+              <p className="mt-1 text-sm text-gray-600">{job.employerName}</p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-500">
+                <Meta icon={MapPin}>{pick(city)}</Meta>
+                <Meta icon={Briefcase}>{pick(experience)}</Meta>
+                <Meta icon={Building2}>{pick(establishment)}</Meta>
+                <Meta icon={Clock}>{pick(contract)}</Meta>
               </div>
             </div>
-      
+          </div>
+
+          <div className="shrink-0 text-start sm:text-end">
+            <p className="flex items-center gap-1.5 text-lg font-bold text-gray-900 sm:justify-end">
+              <Wallet size={17} className="text-brand" />
+              {job.salaryMin.toLocaleString()} – {job.salaryMax.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-500">
+              {job.currency} {t("common.perMonth")}
+            </p>
           </div>
         </div>
 
-        {/* Specialties */}
-        <div className="bg-white p-4 rounded-xl shadow border border-gray-200 mb-6">
-          <h2 className="font-semibold text-gray-800 text-base mb-3">Specialties Sought</h2>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex flex-wrap gap-2">
-              {job.specialties.map((s, i) => (
-                <span key={i} className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1 rounded-full">
-                  {s}
-                </span>
-              ))}
-            </div>
-         
-          </div>
+        <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-gray-100 pt-4 text-xs text-gray-500">
+          <Meta icon={CalendarDays}>
+            {t("jobs.postedOn")} {job.postedAt}
+          </Meta>
+          <Meta icon={Clock}>
+            {job.expired
+              ? t("jobs.expired")
+              : t("jobs.expiresIn", { n: Math.max(0, job.daysLeft) })}
+          </Meta>
+          <span>{t("jobs.applicants", { n: job.applicants })}</span>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow border border-gray-200">
-              <h3 className="text-base font-semibold text-gray-800 mb-3">Job Description</h3>
-              <div className="space-y-3 text-sm text-gray-700">
-                {job.fullDescription.map((desc, i) => <p key={i}>{desc}</p>)}
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow border border-gray-200">
-              <h3 className="text-base font-semibold text-gray-800 mb-3">Requirements</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                {job.requirements.map((req, i) => (
-                  <li key={i} className="flex items-start">
-                    <CheckCircle className="text-green-500 h-4 w-4 mr-2 mt-1" />
-                    <span>{req}</span>
-                  </li>
-                ))}
-              </ul>
-        
-            </div>
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow border border-gray-200">
-              <h3 className="text-base font-semibold text-gray-800 mb-3">Benefits</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                {job.benefits.map((b, i) => (
-                  <li key={i} className="flex items-start">
-                    <CheckCircle className="text-green-500 h-4 w-4 mr-2 mt-1" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div className="bg-white p-6 rounded-xl shadow border border-gray-200">
-              <h3 className="text-base font-semibold text-gray-800 mb-3">Statistics</h3>
-              <div className="space-y-2 text-sm text-gray-700">
-                <div className="flex justify-between">
-                  <span>Applications</span>
-                  <span className="font-medium">{job.statistics.applications}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Views</span>
-                  <span className="font-medium">{job.statistics.views}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Published Since</span>
-                  <span className="font-medium">{job.statistics.publishedSince}</span>
-                </div>
-              </div>
-            </div>
-            {/* Apply button */}
-                  <div className="mt-6">
-                {job.applicationStatus === true ? (
-                  <div className="bg-white border border-gray-200 rounded-md p-4"  onClick={() => setSend(false)}>
-                    <h3 className="text-base font-semibold text-gray-800 mb-3">Interested In This Position?</h3>
-                    <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
-                      <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                      <p className="font-semibold text-green-700 text-sm">Application Sent!</p>
-                      <p className="text-xs text-green-600">The Employer Will Receive Your Profile Shortly.</p>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={()=>setSend(!send)}  className="bg-orange-500 text-white px-6 py-2 rounded-md text-sm hover:bg-orange-600">
-                    Apply Now
-                  </button>
-                )}
-              </div>
-          </div>
+        {/* The single action button — no separate Sign Up next to it. */}
+        <div className="mt-5">
+          {applied ? (
+            <button
+              disabled
+              className="w-full cursor-default rounded-md bg-brand-soft py-3 text-sm font-semibold text-brand-dark sm:w-auto sm:px-10"
+            >
+              {t("jobs.applied")}
+            </button>
+          ) : (
+            <button
+              onClick={apply}
+              className="w-full rounded-md bg-accent py-3 text-sm font-semibold text-white transition hover:bg-accent-dark sm:w-auto sm:px-10"
+            >
+              {isLoggedIn ? t("common.applyNow") : t("jobs.signUpToApply")}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Description */}
+      <Panel title={t("common.description")}>
+        <p className="text-sm leading-relaxed text-gray-700">
+          {locale === "ar" ? job.descriptionAr : job.description}
+        </p>
+      </Panel>
+
+      {/* Requirements + benefits, rendered from the stored option ids */}
+      <Panel title={t("common.requirements")}>
+        <SelectedList
+          ids={job.requirements}
+          lookup={REQUIREMENT_BY_ID}
+          emptyLabel={t("common.noResults")}
+        />
+      </Panel>
+
+      <Panel title={t("common.benefits")}>
+        <SelectedList ids={job.benefits} lookup={BENEFIT_BY_ID} emptyLabel={t("common.noResults")} />
+      </Panel>
     </div>
+  );
+}
+
+function Meta({ icon: Icon, children }) {
+  return (
+    <span className="flex items-center gap-1">
+      <Icon size={14} />
+      {children}
+    </span>
+  );
+}
+
+function Panel({ title, children }) {
+  return (
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
+      <h2 className="mb-3 text-base font-semibold text-gray-900">{title}</h2>
+      {children}
+    </section>
   );
 }

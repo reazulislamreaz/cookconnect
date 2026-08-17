@@ -1,88 +1,82 @@
-'use client';
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { FaEye, FaEyeSlash } from 'react-icons/fa';
+"use client";
 
-const SetNewPasswordForm = () => {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm();
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-const router = useRouter();
-  const onSubmit = (data) => {
-    console.log('New password data:', data);
-    // You can handle password update logic here
-    router.push('/signIn')
-  };
+// New password screen, enforcing the same policy as sign-up
+// (Change Requirements 05).
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
+
+import AuthShell from "@/app/component/auth/AuthShell";
+import PasswordField from "@/app/component/auth/PasswordField";
+import { useT } from "@/i18n/LocaleProvider";
+import { isPasswordValid } from "@/lib/validation";
+
+export default function SetNewPassPage() {
+  const t = useT();
+  const router = useRouter();
+  const [done, setDone] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm();
+
+  const password = watch("password", "");
+
+  if (done) {
+    return (
+      <AuthShell title={t("auth.resetTitle")}>
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-4 rounded-full bg-brand-soft p-4">
+            <Check size={28} className="text-brand" strokeWidth={3} />
+          </span>
+          <p className="text-sm text-gray-600">{t("profile.savedOk")}</p>
+          <button
+            onClick={() => router.push("/signIn")}
+            className="mt-6 w-full rounded-md bg-accent py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark"
+          >
+            {t("auth.signIn")}
+          </button>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-md bg-white p-8 rounded-2xl shadow-md"
-      >
-        {/* Title */}
-        <h2 className="text-center text-2xl font-semibold text-gray-800 mb-2">
-          Set a new password
-        </h2>
-        <p className="text-center text-gray-500 mb-6 text-sm">
-          Create a new password. Ensure it differs from<br />previous ones for security
-        </p>
+    <AuthShell title={t("auth.resetTitle")} subtitle={t("auth.resetSubtitle")}>
+      <form onSubmit={handleSubmit(() => setDone(true))} className="space-y-4">
+        <PasswordField
+          label={t("auth.password")}
+          showRules
+          value={password}
+          error={errors.password?.message}
+          registration={register("password", {
+            required: t("common.required"),
+            validate: (v) => isPasswordValid(v) || t("auth.passwordRules"),
+          })}
+        />
 
-        {/* Password */}
-        <div className="mb-4 relative">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Enter password"
-            {...register('password', { required: 'Password is required' })}
-            className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-          <div
-            className="absolute top-9 right-3 text-gray-500 cursor-pointer"
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? <FaEyeSlash /> : <FaEye />}
-          </div>
-          {errors.password && (
-            <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
-          )}
-        </div>
+        <PasswordField
+          label={t("auth.confirmPassword")}
+          error={errors.confirmPassword?.message}
+          registration={register("confirmPassword", {
+            required: t("common.required"),
+            validate: (v) => v === password || t("auth.passwordMismatch"),
+          })}
+        />
 
-        {/* Confirm Password */}
-        <div className="mb-6 relative">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-          <input
-            type={showConfirm ? 'text' : 'password'}
-            placeholder="Enter password"
-            {...register('confirmPassword', {
-              required: 'Please confirm your password',
-              validate: value =>
-                value === watch('password') || 'Passwords do not match',
-            })}
-            className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-          <div
-            className="absolute top-9 right-3 text-gray-500 cursor-pointer"
-            onClick={() => setShowConfirm(!showConfirm)}
-          >
-            {showConfirm ? <FaEyeSlash /> : <FaEye />}
-          </div>
-          {errors.confirmPassword && (
-            <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>
-          )}
-        </div>
-
-        {/* Submit */}
         <button
           type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-md font-semibold transition duration-200"
+          disabled={isSubmitting}
+          className="w-full rounded-md bg-accent py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark disabled:opacity-60"
         >
-          Update Password
+          {t("common.save")}
         </button>
       </form>
-    </div>
+    </AuthShell>
   );
-};
-
-export default SetNewPasswordForm;
+}

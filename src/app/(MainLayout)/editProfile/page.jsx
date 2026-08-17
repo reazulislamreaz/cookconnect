@@ -1,326 +1,438 @@
-"use client"
+"use client";
 
-import { useForm } from "react-hook-form"
-import Image from "next/image"
-import { useEffect, useState, useRef } from "react"
-import { FaRegUser } from "react-icons/fa"
+// Edit My Profile — the screen sign-up redirects to, and the screen the
+// "Incomplete Profile" gate sends people back to.
+//
+// Change Requirements section 06 drives most of this file:
+//  - "Sector -> Job Position Flow": the position dropdown stays disabled until a
+//    sector is chosen, and then only lists that sector's positions.
+//  - "No Free-Text for Job Fields": job title, sector and experience are
+//    dropdowns only.
+//  - "CV Upload OR CV Builder": two routes to a CV, presented as tabs.
+//  - "Food Photo Upload (Selected Roles)": only for the eligible kitchen /
+//    bakery / pastry / Asian roles, capped at 8.
+//  - "Profile Photo": with a recommendation to use a professional photo.
 
-export default function EditProfileForm() {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm()
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Upload, FileText, Plus, Trash2, Check, AlertTriangle, Lock } from "lucide-react";
 
-  const [dishPreviews, setDishPreviews] = useState([])
-  const [submittedPhotos, setSubmittedPhotos] = useState([])
-  const [profilePreview, setProfilePreview] = useState(null)
-  const [photoError, setPhotoError] = useState("")
+import { useT } from "@/i18n/LocaleProvider";
+import { Field, Input, Select, Textarea } from "@/app/component/ui/Fields";
+import { AvatarUploader, PhotoGridUploader } from "@/app/component/ui/ImageUploader";
+import { SECTORS, getPositions, canUploadFoodPhotos, MAX_FOOD_PHOTOS } from "@/mock/sectors";
+import { CITIES, COUNTRY } from "@/mock/cities";
+import { EXPERIENCE_LEVELS, AVAILABILITY, CONTRACT_TYPES } from "@/mock/jobOptions";
+import { fetchCurrentCandidate } from "@/mock/api";
+import { getProfileCompletion } from "@/lib/profileCompletion";
+import { CV_ACCEPT, CV_MAX_BYTES, validateFile } from "@/lib/validation";
 
-  const dishPhotosFiles = watch("dishPhotos")
-  const profilePictureFile = watch("profilePicture")
-  const uploadCvFile = watch("uploadCv")
-  const fileInputRef = useRef(null)
+const emptyTraining = { school: "", diploma: "", from: "", to: "" };
+const emptyHistory = { establishment: "", position: "", from: "", to: "" };
 
-  // Handle dish photo change with validation
-  const handleDishPhotoChange = (e) => {
-    const selectedFiles = Array.from(e.target.files)
+export default function EditProfilePage() {
+  const t = useT();
+  const router = useRouter();
 
-    if (selectedFiles.length > 8) {
-      setPhotoError("You can only upload up to 8 photos.")
-      setValue("dishPhotos", []) // clear previous files
-      setDishPreviews([])
-    } else {
-      setPhotoError("")
-      setValue("dishPhotos", selectedFiles)
+  const [profile, setProfile] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [cvMode, setCvMode] = useState("upload");
+  const [cvFile, setCvFile] = useState(null);
+  const [cvError, setCvError] = useState("");
 
-      const previews = selectedFiles.map((file) => URL.createObjectURL(file))
-      setDishPreviews(previews)
-
-      // Cleanup URLs
-      return () => previews.forEach((url) => URL.revokeObjectURL(url))
-    }
-  }
-
-  // Profile picture preview
   useEffect(() => {
-    if (profilePictureFile && profilePictureFile[0]) {
-      const file = profilePictureFile[0]
-      const imageUrl = URL.createObjectURL(file)
-      setProfilePreview(imageUrl)
+    fetchCurrentCandidate().then((data) =>
+      setProfile({
+        ...data,
+        training: data.training?.length ? data.training : [emptyTraining],
+        history: data.history?.length ? data.history : [emptyHistory],
+      })
+    );
+  }, []);
 
-      return () => URL.revokeObjectURL(imageUrl)
-    } else {
-      setProfilePreview(null)
+  const set = (key, value) =>
+    setProfile((p) => {
+      // Changing sector invalidates the chosen position — it may not belong to
+      // the new sector's list.
+      if (key === "sectorId") return { ...p, sectorId: value, positionId: "" };
+      return { ...p, [key]: value };
+    });
+
+  const positions = useMemo(() => getPositions(profile?.sectorId), [profile?.sectorId]);
+  const foodPhotosAllowed = profile
+    ? canUploadFoodPhotos(profile.sectorId, profile.positionId)
+    : false;
+  const completion = useMemo(() => getProfileCompletion(profile), [profile]);
+
+  const setRow = (listKey, index, key, value) =>
+    setProfile((p) => {
+      const list = [...p[listKey]];
+      list[index] = { ...list[index], [key]: value };
+      return { ...p, [listKey]: list };
+    });
+
+  const addRow = (listKey, blank) =>
+    setProfile((p) => ({ ...p, [listKey]: [...p[listKey], { ...blank }] }));
+
+  const removeRow = (listKey, index) =>
+    setProfile((p) => ({ ...p, [listKey]: p[listKey].filter((_, i) => i !== index) }));
+
+  const onCvChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const result = validateFile(file, { accept: CV_ACCEPT, maxBytes: CV_MAX_BYTES });
+    if (!result.ok) {
+      setCvError(t("profile.cvUploadHint"));
+      setCvFile(null);
+      return;
     }
-  }, [profilePictureFile])
+    setCvError("");
+    setCvFile(file);
+  };
 
-  const onSubmit = (data) => {
-    console.log("Form Data:", data)
+  const onSave = () => {
+    setSaved(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-    if (data.dishPhotos && data.dishPhotos.length > 0) {
-      const postedImages = Array.from(data.dishPhotos).map((file) =>
-        URL.createObjectURL(file)
-      )
-      setSubmittedPhotos(postedImages)
-      setDishPreviews([]) // clear previews
-    }
+  // Keep the page header on screen while the profile loads, so the first paint
+  // is never a blank page — only the form area is skeletoned.
+  if (!profile) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-10 font-poppins">
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{t("profile.editTitle")}</h1>
+          <p className="mt-1 text-sm text-gray-600">{t("profile.editSubtitle")}</p>
+        </header>
+        <div className="space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-11 animate-pulse rounded bg-gray-100" />
+          ))}
+        </div>
+      </div>
+    );
   }
-
-  const yearsOfExperienceOptions = ["2 years", "3 years", "4 years", "5+ years", "10+ years"]
-  const cityOptions = ["Select your city", "New York", "Los Angeles", "Chicago", "London", "Paris"]
-  const currentPositionOptions = ["Sous-Chef", "Head Chef", "Pastry Chef", "Line Cook", "Commis Chef"]
-  const experienceLevelOptions = ["Sous-Chef", "Junior Chef", "Senior Chef", "Executive Chef"]
-  const culinarySpecialties = [
-    "Moroccan Cuisine",
-    "Asian Cuisine",
-    "Italian Cuisine",
-    "Fast Food",
-    "French Cuisine",
-    "French Cuisine",
-    "Grills",
-    "Seafood",
-    "International Cuisine",
-    "Pastry Shop",
-    "Bakery",
-    "Vegetarian Cuisine",
-  ]
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-poppins">
-      <div className="bg-white border border-[#B5B5B5] rounded-lg shadow-lg p-6 sm:p-8 lg:p-10 max-w-4xl w-full">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-full border-2 border-[#2047B8] overflow-hidden flex items-center justify-center mb-4">
-            {profilePreview ? (
-              <Image
-                src={profilePreview}
-                alt="Profile Preview"
-                width={64}
-                height={64}
-                className="object-cover w-full h-full"
+    <div className="mx-auto max-w-4xl px-4 py-10 font-poppins">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{t("profile.editTitle")}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t("profile.editSubtitle")}</p>
+      </header>
+
+      {/* Completion meter + the incomplete-profile warning */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="font-medium text-gray-800">
+            {t("profile.completion", { n: completion.percent })}
+          </span>
+          {completion.isComplete && (
+            <span className="flex items-center gap-1 text-brand">
+              <Check size={15} strokeWidth={3} /> {t("common.yes")}
+            </span>
+          )}
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className={`h-full rounded-full transition-all ${
+              completion.isComplete ? "bg-brand" : "bg-amber-500"
+            }`}
+            style={{ width: `${completion.percent}%` }}
+          />
+        </div>
+
+        {!completion.isComplete && (
+          <p className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+            <span>
+              <strong className="font-semibold">{t("profile.incompleteTitle")}</strong> —{" "}
+              {t("profile.incompleteBody")}
+              <span className="mt-1 block text-xs">
+                {completion.missing.map((f) => t(f.labelKey)).join(" · ")}
+              </span>
+            </span>
+          </p>
+        )}
+      </div>
+
+      {saved && (
+        <p className="mb-6 flex items-center gap-2 rounded-md bg-brand-soft p-3 text-sm text-brand-dark">
+          <Check size={16} strokeWidth={3} /> {t("profile.savedOk")}
+        </p>
+      )}
+
+      <div className="space-y-8">
+        {/* Photo */}
+        <Section title={t("profile.profilePhoto")}>
+          <AvatarUploader
+            value={profile.photo}
+            onChange={(v) => set("photo", v)}
+            hint={t("profile.photoHint")}
+          />
+        </Section>
+
+        {/* Personal */}
+        <Section title={t("profile.personalInfo")}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label={t("auth.firstName")} required>
+              <Input value={profile.firstName} onChange={(e) => set("firstName", e.target.value)} />
+            </Field>
+            <Field label={t("auth.lastName")} required>
+              <Input value={profile.lastName} onChange={(e) => set("lastName", e.target.value)} />
+            </Field>
+            <Field label={t("common.email")} required>
+              <Input type="email" value={profile.email} onChange={(e) => set("email", e.target.value)} />
+            </Field>
+            <Field label={t("common.phone")} required hint={t("profile.contactHidden")}>
+              <Input value={profile.phone} onChange={(e) => set("phone", e.target.value)} />
+            </Field>
+            <Field label={t("common.country")}>
+              {/* Locked to Morocco while it is the primary market (Change Req 07). */}
+              <Input value={COUNTRY.fr} disabled readOnly />
+            </Field>
+            <Field label={t("common.city")} required>
+              <Select
+                options={CITIES}
+                placeholder={t("common.select")}
+                value={profile.city}
+                onChange={(e) => set("city", e.target.value)}
               />
-            ) : (
-              <FaRegUser size={30} className="text-[#2047B8]" />
-            )}
+            </Field>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Edit My Profile</h1>
-          <p className="text-sm text-gray-500 text-center">Keep your profile up to date to maximize your opportunity</p>
-        </div>
+        </Section>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Profile Info */}
-          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Profile Information</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Full Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full name<span className="text-red-500">*</span>
-            </label>
-            <input
-              {...register("fullName", { required: "Full name is required" })}
-              type="text"
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            {errors.fullName && (
-              <p className="text-red-500 text-sm mt-1">{errors.fullName.message}</p>
-            )}
-          </div>
+        {/* Professional — dropdowns only, sector gates position */}
+        <Section title={t("profile.professionalInfo")}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label={t("common.sector")} required>
+              <Select
+                options={SECTORS}
+                placeholder={t("common.select")}
+                value={profile.sectorId}
+                onChange={(e) => set("sectorId", e.target.value)}
+              />
+            </Field>
 
-          {/* Years of Experience */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Years of experience<span className="text-red-500">*</span>
-            </label>
-            <select
-              {...register("yearsOfExperience", { required: "Required" })}
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm bg-white"
+            <Field
+              label={t("common.position")}
+              required
+              hint={!profile.sectorId ? t("common.selectFirst") : undefined}
             >
-              <option value="">Select</option>
-              {yearsOfExperienceOptions.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-            {errors.yearsOfExperience && (
-              <p className="text-red-500 text-sm mt-1">{errors.yearsOfExperience.message}</p>
-            )}
+              <Select
+                options={positions}
+                placeholder={profile.sectorId ? t("common.select") : t("common.selectFirst")}
+                value={profile.positionId}
+                disabled={!profile.sectorId}
+                onChange={(e) => set("positionId", e.target.value)}
+              />
+            </Field>
+
+            <Field label={t("common.experience")} required>
+              <Select
+                options={EXPERIENCE_LEVELS}
+                placeholder={t("common.select")}
+                value={profile.experience}
+                onChange={(e) => set("experience", e.target.value)}
+              />
+            </Field>
+
+            <Field label={t("common.availability")} required>
+              <Select
+                options={AVAILABILITY}
+                placeholder={t("common.select")}
+                value={profile.availability}
+                onChange={(e) => set("availability", e.target.value)}
+              />
+            </Field>
+
+            <Field label={t("common.contractType")}>
+              <Select
+                options={CONTRACT_TYPES}
+                placeholder={t("common.select")}
+                value={profile.contractType}
+                onChange={(e) => set("contractType", e.target.value)}
+              />
+            </Field>
+
+            <Field label={t("profile.expectedSalary")}>
+              <Input
+                type="number"
+                value={profile.expectedSalary}
+                onChange={(e) => set("expectedSalary", e.target.value)}
+              />
+            </Field>
           </div>
 
-          {/* Phone Number */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone number<span className="text-red-500">*</span>
-            </label>
-            <input
-              {...register("phoneNumber", { required: "Phone number is required" })}
-              type="tel"
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            {errors.phoneNumber && (
-              <p className="text-red-500 text-sm mt-1">{errors.phoneNumber.message}</p>
-            )}
+          <div className="mt-4">
+            <Field label={t("profile.about")}>
+              <Textarea rows={4} value={profile.about} onChange={(e) => set("about", e.target.value)} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Training */}
+        <Section title={t("profile.training")}>
+          {profile.training.map((row, i) => (
+            <RepeaterRow key={i} onRemove={profile.training.length > 1 ? () => removeRow("training", i) : null} label={t("profile.remove")}>
+              <Field label={t("profile.school")}>
+                <Input value={row.school} onChange={(e) => setRow("training", i, "school", e.target.value)} />
+              </Field>
+              <Field label={t("profile.diploma")}>
+                <Input value={row.diploma} onChange={(e) => setRow("training", i, "diploma", e.target.value)} />
+              </Field>
+              <Field label={t("profile.from")}>
+                <Input placeholder="2018" value={row.from} onChange={(e) => setRow("training", i, "from", e.target.value)} />
+              </Field>
+              <Field label={t("profile.to")}>
+                <Input placeholder="2020" value={row.to} onChange={(e) => setRow("training", i, "to", e.target.value)} />
+              </Field>
+            </RepeaterRow>
+          ))}
+          <AddButton onClick={() => addRow("training", emptyTraining)} label={t("profile.addTraining")} />
+        </Section>
+
+        {/* Work history */}
+        <Section title={t("profile.workHistory")}>
+          {profile.history.map((row, i) => (
+            <RepeaterRow key={i} onRemove={profile.history.length > 1 ? () => removeRow("history", i) : null} label={t("profile.remove")}>
+              <Field label={t("profile.establishment")}>
+                <Input value={row.establishment} onChange={(e) => setRow("history", i, "establishment", e.target.value)} />
+              </Field>
+              <Field label={t("profile.positionHeld")}>
+                <Input value={row.position} onChange={(e) => setRow("history", i, "position", e.target.value)} />
+              </Field>
+              <Field label={t("profile.from")}>
+                <Input placeholder="2021" value={row.from} onChange={(e) => setRow("history", i, "from", e.target.value)} />
+              </Field>
+              <Field label={t("profile.to")}>
+                <Input placeholder="2024" value={row.to} onChange={(e) => setRow("history", i, "to", e.target.value)} />
+              </Field>
+            </RepeaterRow>
+          ))}
+          <AddButton onClick={() => addRow("history", emptyHistory)} label={t("profile.addExperience")} />
+        </Section>
+
+        {/* CV: upload or build */}
+        <Section title={t("profile.cv")}>
+          <div className="mb-4 inline-flex rounded-lg border border-gray-200 p-1">
+            <TabButton active={cvMode === "upload"} onClick={() => setCvMode("upload")} icon={Upload}>
+              {t("profile.cvUpload")}
+            </TabButton>
+            <TabButton active={cvMode === "builder"} onClick={() => setCvMode("builder")} icon={FileText}>
+              {t("profile.cvBuilder")}
+            </TabButton>
           </div>
 
-          {/* City */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              City<span className="text-red-500">*</span>
-            </label>
-            <select
-              {...register("city", { required: "City is required" })}
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm bg-white"
-            >
-              {cityOptions.map((city) => (
-                <option key={city} value={city === "Select your city" ? "" : city}>
-                  {city}
-                </option>
-              ))}
-            </select>
-            {errors.city && (
-              <p className="text-red-500 text-sm mt-1">{errors.city.message}</p>
-            )}
-          </div>
-
-          {/* Current Position */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Current Position<span className="text-red-500">*</span>
-            </label>
-            <select
-              {...register("currentPosition", { required: "Required" })}
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm bg-white"
-            >
-              {currentPositionOptions.map((pos) => (
-                <option key={pos} value={pos}>
-                  {pos}
-                </option>
-              ))}
-            </select>
-            {errors.currentPosition && (
-              <p className="text-red-500 text-sm mt-1">{errors.currentPosition.message}</p>
-            )}
-          </div>
-
-          {/* Experience Level */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Experience Level<span className="text-red-500">*</span>
-            </label>
-            <select
-              {...register("experienceLevel", { required: "Required" })}
-              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm bg-white"
-            >
-              {experienceLevelOptions.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-            {errors.experienceLevel && (
-              <p className="text-red-500 text-sm mt-1">{errors.experienceLevel.message}</p>
-            )}
-          </div>
-        </div>
-          </div>
-
-          {/* Culinary Specialties */}
-          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4 mt-8">Culinary Specialties</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {culinarySpecialties.map((specialty) => (
-              <div key={specialty} className="flex items-center">
-                <input
-                  type="checkbox"
-                  id={specialty.replace(/\s/g, "")}
-                  value={specialty}
-                  {...register("culinarySpecialties")}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor={specialty.replace(/\s/g, "")} className="ml-2 block text-sm text-gray-700 cursor-pointer">
-                  {specialty}
-                </label>
-              </div>
-            ))}
-          </div>
-
-          {/* Profile Picture */}
-          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4 mt-8">Profile Picture</h2>
-          <div className="flex items-center space-x-4">
-            <label htmlFor="profilePicture" className="cursor-pointer bg-[#F0F6FE] text-[#2A64C5] px-4 py-2 rounded-md text-sm font-medium ">
-              Choose File
-            </label>
-            <input type="file" id="profilePicture" {...register("profilePicture")} className="sr-only" />
-            <span className="text-sm text-gray-500">
-              {profilePictureFile && profilePictureFile[0] ? profilePictureFile[0].name : "No File Chosen"}
-            </span>
-          </div>
-
-          {/* Upload CV */}
-          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4 mt-8">Upload CV</h2>
-          <div className="flex items-center space-x-4">
-            <label htmlFor="uploadCv" className="cursor-pointer bg-[#EFFCF5] text-[#347659] px-4 py-2 rounded-md text-sm font-medium ">
-              Choose File
-            </label>
-            <input type="file" id="uploadCv" {...register("uploadCv")} className="sr-only" />
-            <span className="text-sm text-gray-500">
-              {uploadCvFile && uploadCvFile[0] ? uploadCvFile[0].name : "No File Chosen"}
-            </span>
-          </div>
-
-          {/* Dish Photos Section */}
-          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4 mt-8">Photos of your dishes</h2>
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Your Photos</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
-              {(submittedPhotos.length > 0 ? submittedPhotos : dishPreviews).map((src, index) => (
-                <div key={index} className="relative w-full aspect-square rounded-md overflow-hidden border border-gray-200">
-                  <Image src={src} alt={`Dish ${index + 1}`} fill style={{ objectFit: "cover" }} />
-                </div>
-              ))}
+          {cvMode === "upload" ? (
+            <div>
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-6 py-10 text-center transition hover:border-brand">
+                <Upload size={24} className="text-gray-400" />
+                <span className="text-sm font-medium text-gray-700">
+                  {cvFile ? cvFile.name : t("profile.cvUpload")}
+                </span>
+                <span className="text-xs text-gray-500">{t("profile.cvUploadHint")}</span>
+                <input type="file" accept={CV_ACCEPT} onChange={onCvChange} className="hidden" />
+              </label>
+              {cvError && <p className="mt-2 text-xs text-red-500">{cvError}</p>}
             </div>
+          ) : (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
+              <p className="text-sm text-gray-600">{t("profile.cvBuilderHint")}</p>
+              <p className="mt-3 text-sm text-gray-500">
+                {t("profile.personalInfo")} · {t("profile.professionalInfo")} · {t("profile.training")} ·{" "}
+                {t("profile.workHistory")}
+              </p>
+              <span className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white">
+                <FileText size={15} />
+                {t("profile.cvBuilder")}
+              </span>
+            </div>
+          )}
+        </Section>
 
-            {submittedPhotos.length === 0 && (
-              <>
-                <div className="flex items-center space-x-4 mb-2">
-                  <label htmlFor="dishPhotos" className="cursor-pointer bg-[#FEFBED] text-[#AE5924] px-4 py-2 rounded-xl text-sm font-medium">
-                    Choose File
-                  </label>
-                  <input
-                    type="file"
-                    id="dishPhotos"
-                    ref={fileInputRef}
-                    multiple
-                    disabled={dishPreviews.length >= 8}
-                    onChange={handleDishPhotoChange}
-                    className="sr-only"
-                  />
-                  <span className="text-sm text-gray-500">
-                    {dishPreviews.length > 0
-                      ? `${dishPreviews.length} file(s) chosen`
-                      : "No File Chosen"}
-                  </span>
-                </div>
-                {photoError && <p className="text-red-500 text-sm">{photoError}</p>}
-                <p className="text-xs text-gray-500">You can add up to 8 photo(s)</p>
-              </>
-            )}
-          </div>
+        {/* Food photos — only for eligible roles */}
+        <Section title={t("profile.foodPhotos")}>
+          {foodPhotosAllowed ? (
+            <PhotoGridUploader
+              value={profile.foodPhotos}
+              onChange={(v) => set("foodPhotos", v)}
+              max={MAX_FOOD_PHOTOS}
+              hint={t("profile.foodPhotosHint", { max: MAX_FOOD_PHOTOS })}
+            />
+          ) : (
+            <p className="flex items-start gap-2 rounded-md bg-gray-50 p-4 text-sm text-gray-500">
+              <Lock size={15} className="mt-0.5 shrink-0" />
+              {t("profile.foodPhotosLocked")}
+            </p>
+          )}
+        </Section>
+      </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-center space-x-4 pt-6">
-            <button type="button" className="px-6 py-2 border border-[#E87B35] rounded-md text-[#E87B35] font-medium hover:bg-gray-50">
-              Cancel
-            </button>
-            <button type="submit" className="px-6 py-2 bg-[#E87B35] text-white rounded-md font-medium hover:bg-orange-600">
-              Save Change
-            </button>
-          </div>
-        </form>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="rounded-md border border-gray-300 px-6 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+        >
+          {t("common.cancel")}
+        </button>
+        <button
+          onClick={onSave}
+          className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark"
+        >
+          {t("profile.saveProfile")}
+        </button>
       </div>
     </div>
-  )
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-5 sm:p-6">
+      <h2 className="mb-4 text-base font-semibold text-gray-900">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function RepeaterRow({ children, onRemove, label }) {
+  return (
+    <div className="mb-4 rounded-lg border border-gray-100 bg-gray-50/60 p-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="mt-3 flex items-center gap-1 text-xs text-red-500 hover:underline"
+        >
+          <Trash2 size={13} /> {label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AddButton({ onClick, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-md border border-dashed border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-brand hover:text-brand"
+    >
+      <Plus size={15} /> {label}
+    </button>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition ${
+        active ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"
+      }`}
+    >
+      <Icon size={15} />
+      {children}
+    </button>
+  );
 }

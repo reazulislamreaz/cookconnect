@@ -1,87 +1,112 @@
-'use client';
-import { useRouter } from 'next/navigation';
-import React, { useRef, useState } from 'react';
+"use client";
 
-const VerifyCodeForm = () => {
-  const inputRefs = useRef([]);
-  const [code, setCode] = useState(['', '', '', '', '']);
-const router = useRouter();
-  const handleChange = (value, index) => {
-    if (!/^\d?$/.test(value)) return;
+// OTP verification — used both for password reset and for the 3-strike account
+// lock in Change Requirements 05.
 
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ShieldCheck } from "lucide-react";
 
-    if (value && index < 4) {
-      inputRefs.current[index + 1]?.focus();
+import AuthShell from "@/app/component/auth/AuthShell";
+import { useT } from "@/i18n/LocaleProvider";
+
+const LENGTH = 6;
+const RESEND_SECONDS = 45;
+
+function VerifyCodeForm() {
+  const t = useT();
+  const router = useRouter();
+  const params = useSearchParams();
+
+  const target = params.get("target") || "+212 6 •• •• •• ••";
+  const [digits, setDigits] = useState(Array(LENGTH).fill(""));
+  const [seconds, setSeconds] = useState(RESEND_SECONDS);
+  const inputs = useRef([]);
+
+  useEffect(() => {
+    if (seconds <= 0) return undefined;
+    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [seconds]);
+
+  const setDigit = (index, value) => {
+    const char = value.replace(/\D/g, "").slice(-1);
+    const next = [...digits];
+    next[index] = char;
+    setDigits(next);
+    if (char && index < LENGTH - 1) inputs.current[index + 1]?.focus();
+  };
+
+  const onKeyDown = (index, event) => {
+    if (event.key === "Backspace" && !digits[index] && index > 0) {
+      inputs.current[index - 1]?.focus();
     }
   };
 
-  const handleKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const enteredCode = code.join('');
-    console.log('Entered verification code:', enteredCode);
-    router.push('/setNewPass')
-  };
-
-  const handleResend = () => {
-    console.log('Resend code clicked');
-  };
+  const complete = digits.every(Boolean);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-md text-center"
-      >
-        <h2 className="text-2xl font-semibold text-gray-800 mb-2">Check your email</h2>
-        <p className="text-gray-500 mb-6 text-sm">
-          We sent a reset link to <span className="font-medium text-gray-700">contact@dscode_.com</span><br />
-          enter 5 digit code that mentioned in the email
-        </p>
+    <AuthShell title={t("auth.otpTitle")} subtitle={t("auth.otpSubtitle", { target })}>
+      <div className="mb-6 flex justify-center">
+        <span className="rounded-full bg-brand-soft p-4">
+          <ShieldCheck size={26} className="text-brand" />
+        </span>
+      </div>
 
-        <div className="flex justify-center gap-3 mb-6">
-          {code.map((digit, index) => (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (complete) router.push("/setNewPass");
+        }}
+      >
+        {/* dir="ltr" keeps the code boxes left-to-right even in the Darija RTL layout. */}
+        <div dir="ltr" className="mb-6 flex justify-center gap-2">
+          {digits.map((digit, i) => (
             <input
-              key={index}
-              type="text"
-              maxLength={1}
+              key={i}
+              ref={(el) => {
+                inputs.current[i] = el;
+              }}
               value={digit}
-              ref={(el) => (inputRefs.current[index] = el)}
-              onChange={(e) => handleChange(e.target.value, index)}
-              onKeyDown={(e) => handleKeyDown(e, index)}
-              className="w-12 h-12 text-center text-lg border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
+              onChange={(e) => setDigit(i, e.target.value)}
+              onKeyDown={(e) => onKeyDown(i, e)}
+              inputMode="numeric"
+              maxLength={1}
+              aria-label={`${i + 1}`}
+              className="h-12 w-11 rounded-md border border-gray-300 text-center text-lg font-semibold outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
           ))}
         </div>
 
         <button
           type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-md font-semibold transition duration-200"
+          disabled={!complete}
+          className="w-full rounded-md bg-accent py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Verify Code
+          {t("auth.verify")}
         </button>
-
-        <p className="text-sm text-gray-600 mt-4">
-          You have not received the email?{' '}
-          <button
-            type="button"
-            onClick={handleResend}
-            className="text-green-600 font-medium hover:underline"
-          >
-            Resend
-          </button>
-        </p>
       </form>
-    </div>
-  );
-};
 
-export default VerifyCodeForm;
+      <div className="mt-4 text-center text-sm">
+        {seconds > 0 ? (
+          <span className="text-gray-500">{t("auth.otpResendIn", { n: seconds })}</span>
+        ) : (
+          <button
+            onClick={() => setSeconds(RESEND_SECONDS)}
+            className="font-medium text-accent hover:underline"
+          >
+            {t("auth.otpResend")}
+          </button>
+        )}
+      </div>
+    </AuthShell>
+  );
+}
+
+export default function VerifyCodePage() {
+  return (
+    <Suspense>
+      <VerifyCodeForm />
+    </Suspense>
+  );
+}

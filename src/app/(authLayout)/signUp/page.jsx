@@ -1,154 +1,193 @@
-'use client';
-import Link from 'next/link';
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { FcGoogle } from 'react-icons/fc';
-import ReCAPTCHA from 'react-google-recaptcha';
-import { useRouter } from 'next/navigation';
+"use client";
 
-const SITE_KEY = 'YOUR_SITE_KEY_HERE'; // 🔁 Replace with your real site key
+// Change Requirements section 06:
+//
+//   "Minimal Sign-Up Fields — Initial sign-up only requires: First name, Last
+//    name, Email, Password, Confirm Password. Do NOT ask for everything upfront."
+//
+//   "Post-Registration Redirect — After sign-up, redirect the candidate directly
+//    to the Edit My Profile page."
+//
+// Section 01 supplies the role wording: 'I'm a cook' becomes 'I'm looking for a
+// job' and 'I'm a restaurant' becomes 'I'm an employer'.
 
-const SignUpForm = () => {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm();
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState(null);
-const router = useRouter();
-  const onSubmit = (data) => {
-    // if (!captchaToken) {
-    //   alert('Please complete the reCAPTCHA');
-    //   return;
-    // }
-    console.log('Form Data:', data);
-      router.push('/signIn')
-    // console.log('Captcha Token:', captchaToken);
-    // Add signup submission logic here (e.g. send to API)
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChefHat, Building2 } from "lucide-react";
+
+import AuthShell, { GoogleButton, Divider } from "@/app/component/auth/AuthShell";
+import PasswordField from "@/app/component/auth/PasswordField";
+import { Field, Input } from "@/app/component/ui/Fields";
+import { useT } from "@/i18n/LocaleProvider";
+import { useSession, ROLES } from "@/lib/session";
+import { isPasswordValid } from "@/lib/validation";
+
+function SignUpForm() {
+  const t = useT();
+  const router = useRouter();
+  const params = useSearchParams();
+  const { login } = useSession();
+
+  const [role, setRole] = useState(
+    params.get("role") === "employer" ? ROLES.EMPLOYER : ROLES.CANDIDATE
+  );
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm();
+
+  const password = watch("password", "");
+
+  const onSubmit = async () => {
+    login(role);
+    // Straight to profile completion — never to a landing page in between.
+    router.push(role === ROLES.EMPLOYER ? "/resturentProfileForm" : "/editProfile");
+  };
+
+  const finishWithGoogle = () => {
+    login(role);
+    router.push(role === ROLES.EMPLOYER ? "/resturentProfileForm" : "/editProfile");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-md bg-white p-8 rounded-2xl shadow-md"
-      >
-        <h2 className="text-center text-2xl font-semibold text-orange-500 mb-6">Sign Up</h2>
-
-        {/* Full Name */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-          <input
-            type="text"
-            placeholder="Enter your user name"
-            {...register('name', { required: 'Full name is required' })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
+    <AuthShell
+      title={t("auth.joinTitle")}
+      subtitle={t("auth.signUpSubtitle")}
+      footer={
+        <>
+          {t("auth.haveAccount")}{" "}
+          <Link href="/signIn" className="font-medium text-accent hover:underline">
+            {t("auth.signIn")}
+          </Link>
+        </>
+      }
+    >
+      {/* Account type */}
+      <div className="mb-6">
+        <p className="mb-2 text-sm font-medium text-gray-700">{t("auth.accountType")}</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <RoleOption
+            active={role === ROLES.CANDIDATE}
+            onClick={() => setRole(ROLES.CANDIDATE)}
+            icon={ChefHat}
+            label={t("auth.lookingForJob")}
           />
-          {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
+          <RoleOption
+            active={role === ROLES.EMPLOYER}
+            onClick={() => setRole(ROLES.EMPLOYER)}
+            icon={Building2}
+            label={t("auth.iAmEmployer")}
+          />
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label={t("auth.firstName")} required error={errors.firstName?.message}>
+            <Input
+              error={errors.firstName}
+              placeholder={t("auth.firstName")}
+              {...register("firstName", { required: t("common.required") })}
+            />
+          </Field>
+          <Field label={t("auth.lastName")} required error={errors.lastName?.message}>
+            <Input
+              error={errors.lastName}
+              placeholder={t("auth.lastName")}
+              {...register("lastName", { required: t("common.required") })}
+            />
+          </Field>
         </div>
 
-        {/* Email */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <input
+        <Field label={t("auth.email")} required error={errors.email?.message}>
+          <Input
             type="email"
-            placeholder="Enter your email"
-            {...register('email', { required: 'Email is required' })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-          {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
-        </div>
-
-        {/* Password */}
-        <div className="mb-4 relative">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Enter password"
-            {...register('password', { required: 'Password is required' })}
-            className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-          <div
-            className="absolute top-9 right-3 text-gray-500 cursor-pointer"
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? <FaEyeSlash /> : <FaEye />}
-          </div>
-          {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
-        </div>
-
-        {/* Confirm Password */}
-        <div className="mb-4 relative">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
-          <input
-            type={showConfirm ? 'text' : 'password'}
-            placeholder="Enter password"
-            {...register('confirmPassword', {
-              required: 'Please confirm your password',
-              validate: value => value === watch('password') || 'Passwords do not match',
+            error={errors.email}
+            placeholder="nom@exemple.ma"
+            {...register("email", {
+              required: t("common.required"),
+              pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t("common.required") },
             })}
-            className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
-          <div
-            className="absolute top-9 right-3 text-gray-500 cursor-pointer"
-            onClick={() => setShowConfirm(!showConfirm)}
-          >
-            {showConfirm ? <FaEyeSlash /> : <FaEye />}
-          </div>
-          {errors.confirmPassword && (
-            <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>
-          )}
-        </div>
+        </Field>
 
-        {/* Terms and Conditions */}
-        <div className="flex items-center gap-2 mb-4">
+        <PasswordField
+          label={t("auth.password")}
+          showRules
+          value={password}
+          error={errors.password?.message}
+          registration={register("password", {
+            required: t("common.required"),
+            validate: (v) => isPasswordValid(v) || t("auth.passwordRules"),
+          })}
+        />
+
+        <PasswordField
+          label={t("auth.confirmPassword")}
+          error={errors.confirmPassword?.message}
+          registration={register("confirmPassword", {
+            required: t("common.required"),
+            validate: (v) => v === password || t("auth.passwordMismatch"),
+          })}
+        />
+
+        <label className="flex items-start gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
-            {...register('terms', { required: 'You must agree to the terms' })}
-            className="accent-orange-500 text-white"
+            className="mt-0.5 accent-[#E87B35]"
+            {...register("terms", { required: true })}
           />
-          <label className="text-sm text-gray-700">
-            Agree With{' '}
-            <a href="#" className="text-blue-600 underline">Terms & Conditions</a>
-          </label>
-        </div>
-        {errors.terms && <p className="text-red-500 text-sm mb-2">{errors.terms.message}</p>}
+          <span>
+            {t("footer.terms")}{" "}
+            <Link href="/terms" className="text-accent underline">
+              {t("footer.legal")}
+            </Link>
+          </span>
+        </label>
+        {errors.terms && <p className="text-sm text-red-500">{t("common.required")}</p>}
 
-        {/* Google reCAPTCHA */}
-        {/* <div className="flex justify-center mb-4">
-          <ReCAPTCHA
-            sitekey={"6LerEIUrAAAAAPnwg4FrL6KmKkMnnh6kJTTdu3xa"}
-            onChange={token => setCaptchaToken(token)}
-            className="mx-auto"
-          />
-        </div> */}
-
-        {/* Submit */}
         <button
           type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-md font-semibold"
+          disabled={isSubmitting}
+          className="w-full rounded-md bg-accent py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark disabled:opacity-60"
         >
-          Sign up
+          {t("auth.createAccount")}
         </button>
-
-        {/* Continue with Google */}
-        <button
-          type="button"
-          className="w-full border border-gray-300 py-2 mt-4 rounded-md flex items-center justify-center gap-2 text-sm hover:shadow"
-        >
-          <FcGoogle className="text-lg" />
-          Continue with google
-        </button>
-
-        {/* Already have account */}
-        <p className="text-center text-sm text-gray-600 mt-6">
-          Already have an account?{' '}
-          <Link href="/signIn" className="text-orange-500 font-medium hover:underline">
-            Log In
-          </Link>
-        </p>
       </form>
-    </div>
-  );
-};
 
-export default SignUpForm;
+      <Divider label={t("auth.or")} />
+      <GoogleButton onClick={finishWithGoogle} label={t("auth.continueWithGoogle")} />
+    </AuthShell>
+  );
+}
+
+function RoleOption({ active, onClick, icon: Icon, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-lg border p-3 text-start text-sm font-medium transition ${
+        active
+          ? "border-brand bg-brand-soft text-brand-dark"
+          : "border-gray-200 text-gray-700 hover:border-gray-300"
+      }`}
+    >
+      <Icon size={18} className={active ? "text-brand" : "text-gray-400"} />
+      {label}
+    </button>
+  );
+}
+
+// useSearchParams requires a Suspense boundary during prerender.
+export default function SignUpPage() {
+  return (
+    <Suspense>
+      <SignUpForm />
+    </Suspense>
+  );
+}
