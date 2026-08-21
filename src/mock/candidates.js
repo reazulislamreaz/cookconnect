@@ -6,6 +6,8 @@
 
 import { POSITIONS, canUploadFoodPhotos, MAX_FOOD_PHOTOS } from "./sectors";
 import { getCity } from "./cities";
+import { getProfileCompletion } from "@/lib/profileCompletion";
+import { CONTRACT_TYPES } from "./jobOptions";
 
 const PHOTOS = [
   "https://i.ibb.co/HD6WMnhg/Rectangle-119.png",
@@ -85,9 +87,22 @@ export const CANDIDATES = SEED.map(([sectorId, positionId, city, experience, ava
 
   // A few profiles are deliberately incomplete so the "Incomplete Profile"
   // gate (Change Requirements 06) has something to trigger on.
-  const completion = i % 7 === 3 ? 60 : i % 5 === 2 ? 85 : 100;
+  //
+  // The gap has to be real: `completion` used to be a hardcoded number while
+  // every required field was still populated, so getProfileCompletion() scored
+  // those profiles 100% and the gate never fired for anyone. Blanking the
+  // fields is the single source of truth — the percentage is derived from them
+  // below, so the badge and the gate can never disagree again.
+  // Text-only fields, deliberately: blanking `photo` would leave <img src="">
+  // in the profile cards, which renders as a broken image rather than as a
+  // missing field.
+  const blanked = i % 7 === 3
+    ? ["availability", "phone"]   // misses two required fields
+    : i % 5 === 2
+      ? ["availability"]          // misses one
+      : [];
 
-  return {
+  const profile = {
     id: `cand-${i + 1}`,
     firstName,
     lastName,
@@ -97,6 +112,7 @@ export const CANDIDATES = SEED.map(([sectorId, positionId, city, experience, ava
     positionId,
     title: position.fr,
     titleAr: position.ar,
+    titleEn: position.en,
     city,
     country: "MA",
     experience,
@@ -104,15 +120,16 @@ export const CANDIDATES = SEED.map(([sectorId, positionId, city, experience, ava
     email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(/\s/g, "")}@example.ma`,
     phone: `+212 6 ${10 + (i % 80)} ${20 + (i % 70)} ${30 + (i % 60)} ${40 + (i % 50)}`,
     verified: i % 4 !== 1,
-    completion,
     expectedSalary: 4000 + (i % 12) * 1000,
-    contractType: i % 3 === 0 ? "short-term" : "long-term",
+    // Cycled over the live list rather than hardcoded, so editing
+    // CONTRACT_TYPES can never leave a candidate holding a dead id.
+    contractType: CONTRACT_TYPES[i % CONTRACT_TYPES.length].id,
     skills: SKILL_POOL[i % SKILL_POOL.length],
     training: [TRAINING[i % TRAINING.length]],
     history: [
       {
         establishment: ["Hôtel Atlas", "Café Central", "Le Petit Marocain", "Riad Nour"][i % 4],
-        position: position.fr,
+        positionId,
         from: `${2018 + (i % 4)}`,
         to: `${2021 + (i % 4)}`,
       },
@@ -121,11 +138,26 @@ export const CANDIDATES = SEED.map(([sectorId, positionId, city, experience, ava
     foodPhotos: Array.from({ length: photoCount }, (_, k) => PHOTOS[(i + k) % PHOTOS.length]),
     hasCv: i % 3 !== 1,
     about: `${position.fr} avec ${experience.replace("-", " à ")} ans d'expérience, basé(e) à ${getCity(city)?.fr || city}. Rigoureux(se), habitué(e) au rythme du service et au travail en brigade.`,
+    aboutAr: `${position.ar} عندو ${experience.replace("-", " ل ")} دلعام دالتجربة، ساكن ف${getCity(city)?.ar || city}. جدي، متعوّد على إيقاع الخدمة وعلى الخدمة فالفريق.`,
+    aboutEn: `${position.en} with ${experience.replace("-", " to ")} years of experience, based in ${getCity(city)?.en || city}. Meticulous, used to the pace of service and to working in a brigade.`,
     registeredAt: `2026-0${1 + (i % 8)}-${String(1 + (i % 27)).padStart(2, "0")}`,
   };
+
+  blanked.forEach((field) => {
+    profile[field] = "";
+  });
+
+  return { ...profile, completion: getProfileCompletion(profile).percent };
 });
 
 export const getCandidate = (id) => CANDIDATES.find((c) => c.id === id) || null;
 
 /** The candidate currently "signed in" in the demo. */
 export const CURRENT_CANDIDATE_ID = "cand-1";
+
+/**
+ * A deliberately incomplete candidate, so the "Incomplete Profile" gate can be
+ * demonstrated without editing fixtures. `cand-4` is index 3, which the
+ * `i % 7 === 3` branch above blanks down to roughly two thirds complete.
+ */
+export const INCOMPLETE_CANDIDATE_ID = "cand-4";

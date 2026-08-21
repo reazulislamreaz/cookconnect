@@ -22,7 +22,7 @@ import AuthShell, { GoogleButton, Divider } from "@/app/component/auth/AuthShell
 import PasswordField from "@/app/component/auth/PasswordField";
 import { Field, Input } from "@/app/component/ui/Fields";
 import { useT } from "@/i18n/LocaleProvider";
-import { useSession, ROLES } from "@/lib/session";
+import { useSession, ROLES, DEMO_INCOMPLETE_CANDIDATE } from "@/lib/session";
 import { isPasswordValid, MAX_LOGIN_ATTEMPTS } from "@/lib/validation";
 
 export default function SignInPage() {
@@ -31,6 +31,9 @@ export default function SignInPage() {
   const { login } = useSession();
 
   const [role, setRole] = useState(ROLES.CANDIDATE);
+  // Demo switch: sign in as a candidate whose profile is missing required
+  // fields, so the "Incomplete Profile" gate can be seen without editing data.
+  const [incompleteDemo, setIncompleteDemo] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [locked, setLocked] = useState(false);
 
@@ -42,6 +45,13 @@ export default function SignInPage() {
   } = useForm();
 
   const password = useWatch({ control, name: "password", defaultValue: "" });
+
+  const isCandidate = role === ROLES.CANDIDATE;
+
+  const signIn = () => {
+    login(role, isCandidate && incompleteDemo ? DEMO_INCOMPLETE_CANDIDATE : undefined);
+    router.push(role === ROLES.EMPLOYER ? "/resturentDashboard" : "/dashboard");
+  };
   const remaining = MAX_LOGIN_ATTEMPTS - attempts;
 
   const onSubmit = async (data) => {
@@ -54,8 +64,7 @@ export default function SignInPage() {
       return;
     }
 
-    login(role);
-    router.push(role === ROLES.EMPLOYER ? "/resturentDashboard" : "/dashboard");
+    signIn();
   };
 
   if (locked) {
@@ -105,6 +114,21 @@ export default function SignInPage() {
         />
       </div>
 
+      {isCandidate && (
+        <label className="mb-5 flex items-start gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-[#E87B35]"
+            checked={incompleteDemo}
+            onChange={(e) => setIncompleteDemo(e.target.checked)}
+          />
+          <span>
+            <strong className="font-semibold">{t("auth.demoIncomplete")}</strong>
+            <span className="block text-xs text-gray-500">{t("auth.demoIncompleteHint")}</span>
+          </span>
+        </label>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Field label={t("auth.email")} required error={errors.email?.message}>
           <Input
@@ -151,10 +175,7 @@ export default function SignInPage() {
       <Divider label={t("auth.or")} />
       <GoogleButton
         label={t("auth.continueWithGoogle")}
-        onClick={() => {
-          login(role);
-          router.push(role === ROLES.EMPLOYER ? "/resturentDashboard" : "/dashboard");
-        }}
+        onClick={signIn}
       />
     </AuthShell>
   );

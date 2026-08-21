@@ -3,17 +3,29 @@
 // Shared chrome for every screen under (authLayout): brand mark, card, and a
 // back-to-home link. Keeps the auth flow visually consistent now that the
 // wording changed across all of them (Change Requirements section 01).
+//
+// The language switch is pinned to the top corner of every auth screen. These
+// routes render without the navbar, so without it a candidate who does not read
+// the default language has no way to change it before registering.
 
 import Link from "next/link";
 import Image from "next/image";
 import logo from "../../../assets/CookconneKt 1.png";
 import { useT } from "@/i18n/LocaleProvider";
+import LanguageSwitch from "@/app/component/ui/LanguageSwitch";
 
 export default function AuthShell({ title, subtitle, children, footer, wide = false }) {
   const t = useT();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4 py-10 font-poppins">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4 py-10 font-poppins">
+      {/* Positioned on a wrapper, not on LanguageSwitch: its root carries
+          `relative` to anchor the dropdown, and Tailwind emits `.relative`
+          after `.absolute`, so passing position classes in would be dropped. */}
+      <div className="absolute end-4 top-4 sm:end-6 sm:top-6">
+        <LanguageSwitch />
+      </div>
+
       <Link href="/" className="mb-6 flex items-center gap-2">
         <Image src={logo} alt="" width={40} height={40} />
         <span className="text-xl font-bold text-gray-900">{t("brand.name")}</span>

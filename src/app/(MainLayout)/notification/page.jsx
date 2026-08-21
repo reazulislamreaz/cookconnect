@@ -24,7 +24,7 @@ const ICONS = {
 
 export default function NotificationsPage() {
   const t = useT();
-  const { locale } = useLocale();
+  const { pick } = useLocale();
   const [items, setItems] = useState(null);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function NotificationsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium text-gray-900">
-                        {locale === "ar" ? n.titleAr : n.title}
+                        {pick(n, "title")}
                       </p>
                       {!n.read && (
                         <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-white">
@@ -74,7 +74,7 @@ export default function NotificationsPage() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-gray-600">{n.body}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-gray-600">{pick(n, "body")}</p>
                     <p className="mt-1.5 text-xs text-gray-400">{n.date}</p>
                   </div>
                 </Link>

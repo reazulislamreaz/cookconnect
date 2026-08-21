@@ -5,10 +5,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { IoNotificationsOutline } from "react-icons/io5";
-import { Globe, ChevronDown, Menu, X, Check } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 
 import logo from "../../../assets/CookconneKt 1.png";
-import { useLocale, useT, LOCALES } from "@/i18n/LocaleProvider";
+import { useT } from "@/i18n/LocaleProvider";
+import LanguageSwitch from "@/app/component/ui/LanguageSwitch";
 import { useSession } from "@/lib/session";
 import { unreadCount } from "@/mock/notifications";
 
@@ -16,11 +17,9 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const t = useT();
-  const { locale, setLocale } = useLocale();
   const { user, isLoggedIn, isEmployer, logout } = useSession();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [langOpen, setLangOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
 
   const dashboardLink = isEmployer ? "/resturentDashboard" : "/dashboard";
@@ -65,13 +64,7 @@ export default function Navbar() {
 
         {/* Desktop right side */}
         <div className="hidden items-center gap-3 lg:flex">
-          <LanguageSwitch
-            open={langOpen}
-            setOpen={setLangOpen}
-            locale={locale}
-            setLocale={setLocale}
-            label={t("nav.language")}
-          />
+          <LanguageSwitch />
 
           {isLoggedIn ? (
             <>
@@ -150,14 +143,7 @@ export default function Navbar() {
 
         {/* Mobile controls */}
         <div className="flex items-center gap-2 lg:hidden">
-          <LanguageSwitch
-            open={langOpen}
-            setOpen={setLangOpen}
-            locale={locale}
-            setLocale={setLocale}
-            label={t("nav.language")}
-            compact
-          />
+          <LanguageSwitch compact />
           <button
             onClick={() => setMenuOpen((v) => !v)}
             aria-label={t("nav.menu")}
@@ -227,57 +213,5 @@ export default function Navbar() {
         </div>
       )}
     </header>
-  );
-}
-
-/**
- * Change Requirements 02: the language switch must be clear and easy to find,
- * so it stays visible on mobile rather than being buried in the burger menu.
- */
-function LanguageSwitch({ open, setOpen, locale, setLocale, label, compact = false }) {
-  const active = LOCALES.find((l) => l.id === locale);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        aria-label={label}
-        className={`flex items-center gap-1.5 rounded-lg border border-gray-300 text-sm text-gray-800 transition hover:bg-gray-50 ${
-          compact ? "px-2.5 py-2" : "px-3.5 py-2"
-        }`}
-      >
-        <Globe size={16} />
-        <span className="font-medium">{active?.short}</span>
-        <ChevronDown size={14} className="text-gray-400" />
-      </button>
-
-      {open && (
-        <>
-          <button
-            aria-hidden
-            tabIndex={-1}
-            className="fixed inset-0 z-10 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute end-0 z-20 mt-2 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-            {LOCALES.map((l) => (
-              <button
-                key={l.id}
-                onClick={() => {
-                  setLocale(l.id);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center justify-between px-4 py-2.5 text-start text-sm transition hover:bg-gray-50 ${
-                  l.id === locale ? "font-semibold text-brand" : "text-gray-700"
-                }`}
-              >
-                {l.label}
-                {l.id === locale && <Check size={14} />}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
   );
 }

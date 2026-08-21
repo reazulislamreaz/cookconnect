@@ -22,12 +22,13 @@ import { useSignupGate } from "@/app/component/ui/SignupGate";
 import { fetchCandidate, toggleSaveProfile } from "@/mock/api";
 import { getCity } from "@/mock/cities";
 import { EXPERIENCE_LEVELS, AVAILABILITY, REQUIREMENT_BY_ID } from "@/mock/jobOptions";
+import { POSITION_BY_ID } from "@/mock/sectors";
 import { SAVED_PROFILES } from "@/mock/applications";
 import EmptyState from "@/app/component/ui/EmptyState";
 
 export default function CandidateDetailPage() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
   const { id } = useParams();
   const { isEmployer } = useSession();
   const { requireAuth } = useSignupGate();
@@ -105,7 +106,7 @@ export default function CandidateDetailPage() {
                 {candidate.verified && <BadgeCheck size={18} className="text-brand" />}
               </h1>
               <p className="mt-0.5 text-sm text-gray-600">
-                {locale === "ar" ? candidate.titleAr : candidate.title}
+                {pick(candidate, "title")}
               </p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-500">
                 <Meta icon={MapPin}>{pick(city)}</Meta>
@@ -154,7 +155,7 @@ export default function CandidateDetailPage() {
 
       {/* About */}
       <Panel title={t("profile.about")}>
-        <p className="text-sm leading-relaxed text-gray-700">{candidate.about}</p>
+        <p className="text-sm leading-relaxed text-gray-700">{pick(candidate, "about")}</p>
       </Panel>
 
       {/* Skills */}
@@ -202,7 +203,7 @@ export default function CandidateDetailPage() {
               <TimelineRow
                 key={i}
                 icon={Building2}
-                title={row.position}
+                title={pick(POSITION_BY_ID[row.positionId])}
                 subtitle={row.establishment}
                 period={`${row.from} – ${row.to}`}
               />

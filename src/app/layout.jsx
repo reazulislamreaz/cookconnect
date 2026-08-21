@@ -21,11 +21,25 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   // `lang` / `dir` start on the French default and are updated on the client by
-  // LocaleProvider when the visitor switches to Darija.
+  // LocaleProvider when the visitor switches to Darija — hence
+  // suppressHydrationWarning on <html>: the attributes legitimately differ from
+  // the server HTML once a stored locale is applied. On <body> it absorbs the
+  // attributes browser extensions inject before React hydrates.
+  //
+  // `translate="no"` is deliberate. The site ships its own FR/Darija switcher,
+  // and Chrome's auto-translate rewrites text nodes underneath React; when React
+  // later removes one of those nodes it throws
+  // "NotFoundError: Failed to execute 'removeChild' on 'Node'", which takes the
+  // whole page down. Opting out of machine translation removes that class of
+  // crash without costing the user anything the app doesn't already provide.
   return (
-    <html lang="fr" dir="ltr">
+    <html lang="fr" dir="ltr" translate="no" suppressHydrationWarning>
+      <head>
+        <meta name="google" content="notranslate" />
+      </head>
       <body
-        className={`${dmSans.variable} ${urbanist.variable} ${poppins.variable} ${inter.variable} antialiased bg-white`}
+        suppressHydrationWarning
+        className={`notranslate ${dmSans.variable} ${urbanist.variable} ${poppins.variable} ${inter.variable} antialiased bg-white`}
       >
         <Providers>{children}</Providers>
       </body>

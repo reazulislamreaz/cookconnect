@@ -1,8 +1,10 @@
 "use client";
 
-// Placeholder lorem ipsum replaced with real French copy describing the
-// platform as the client's brief defines it. Final marketing wording is still
-// the client's to supply.
+// Copy describing the platform as the client's brief defines it. Final
+// marketing wording is still the client's to supply.
+//
+// The text lives in the dictionaries, not inline: it was written straight into
+// the component in French, so this page stayed French in every language.
 
 import Image from "next/image";
 import Link from "next/link";
@@ -15,26 +17,10 @@ export default function AboutUsPage() {
   const t = useT();
 
   const pillars = [
-    {
-      icon: ChefHat,
-      title: "Pour les candidats",
-      body: "Créez un profil complet ou générez votre CV directement sur la plateforme, puis postulez aux offres près de chez vous. L'inscription est gratuite.",
-    },
-    {
-      icon: Building2,
-      title: "Pour les employeurs",
-      body: "Publiez vos offres, filtrez les profils par ville, secteur, poste et expérience, et gardez de côté les candidats qui vous intéressent.",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Des offres vérifiées",
-      body: "Chaque offre d'emploi est contrôlée et approuvée par notre équipe avant d'être publiée. Les coordonnées des candidats sont protégées.",
-    },
-    {
-      icon: Languages,
-      title: "En français et en darija",
-      body: "Toute la plateforme est disponible en français et en arabe marocain, pour que la langue ne soit jamais un obstacle.",
-    },
+    { icon: ChefHat, key: "candidates" },
+    { icon: Building2, key: "employers" },
+    { icon: ShieldCheck, key: "verified" },
+    { icon: Languages, key: "languages" },
   ];
 
   return (
@@ -52,27 +38,18 @@ export default function AboutUsPage() {
         </div>
 
         <div className="space-y-5 text-gray-700">
-          <p className="leading-relaxed">
-            Nkhedmou.ma — « nkhedmou » veut dire « on travaille » en darija — est né d&apos;un constat
-            simple : au Maroc, les cuisiniers, boulangers, pâtissiers et le personnel d&apos;hôtellerie
-            trouvent encore leur travail par le bouche-à-oreille, tandis que les restaurants et les
-            hôtels peinent à recruter des profils qualifiés.
-          </p>
-          <p className="leading-relaxed">
-            Notre objectif est de rassembler ces deux mondes au même endroit, avec une plateforme
-            simple, sécurisée et pensée d&apos;abord pour le mobile, puisque c&apos;est là que se
-            trouvent la plupart de nos utilisateurs.
-          </p>
+          <p className="leading-relaxed">{t("about.intro1")}</p>
+          <p className="leading-relaxed">{t("about.intro2")}</p>
         </div>
 
         <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {pillars.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-xl border border-gray-200 bg-white p-6">
+          {pillars.map(({ icon: Icon, key }) => (
+            <div key={key} className="rounded-xl border border-gray-200 bg-white p-6">
               <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-brand-soft text-brand">
                 <Icon size={20} strokeWidth={1.75} />
               </span>
-              <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">{body}</p>
+              <h2 className="text-base font-semibold text-gray-900">{t(`about.${key}Title`)}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600">{t(`about.${key}Body`)}</p>
             </div>
           ))}
         </div>

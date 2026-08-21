@@ -14,15 +14,28 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExte
 import { subscribe, getString, setValue } from "@/lib/browserStore";
 import fr from "./dictionaries/fr.json";
 import ar from "./dictionaries/ar.json";
+import en from "./dictionaries/en.json";
 
-const DICTIONARIES = { fr, ar };
+const DICTIONARIES = { fr, ar, en };
 const STORAGE_KEY = "nkhedmou.locale";
 export const DEFAULT_LOCALE = "fr";
 
+// French stays first and stays the default (Change Req 02); English is offered
+// alongside it for international candidates and hotel groups.
 export const LOCALES = [
   { id: "fr", label: "Français", short: "FR", dir: "ltr" },
   { id: "ar", label: "الدارجة", short: "AR", dir: "rtl" },
+  { id: "en", label: "English", short: "EN", dir: "ltr" },
 ];
+
+/**
+ * Field-suffix per locale, for the `pick(obj, "title")` shape. French is the
+ * unsuffixed base field, so it maps to an empty suffix.
+ */
+const LOCALE_SUFFIX = { fr: "", ar: "Ar", en: "En" };
+
+/** BCP 47 tags for the `lang` attribute — "ar" alone would imply MSA, not Darija. */
+const HTML_LANG = { fr: "fr", ar: "ar-MA", en: "en" };
 
 const LocaleContext = createContext(null);
 
@@ -42,11 +55,11 @@ export function LocaleProvider({ children }) {
     () => DEFAULT_LOCALE
   );
 
-  const dir = locale === "ar" ? "rtl" : "ltr";
+  const dir = LOCALES.find((l) => l.id === locale)?.dir ?? "ltr";
 
   // Syncing the document element is a genuine external-system effect.
   useEffect(() => {
-    document.documentElement.lang = locale === "ar" ? "ar-MA" : "fr";
+    document.documentElement.lang = HTML_LANG[locale] ?? DEFAULT_LOCALE;
     document.documentElement.dir = dir;
   }, [locale, dir]);
 
@@ -71,17 +84,31 @@ export function LocaleProvider({ children }) {
 
   /**
    * Reads the active language off a data object that carries its own
-   * translations, e.g. `{ fr: "Chef de cuisine", ar: "شيف دكوزينة" }`.
-   * This is how offers and job titles stay translated (Change Req 02).
+   * translations. Two shapes are supported, both keyed by locale:
+   *
+   *   pick(sector)          -> { fr, ar, en }            whole-object labels
+   *   pick(job, "title")    -> { title, titleAr, titleEn } one field of many
+   *
+   * French is the base key (`fr`, or the bare field name) because the site is
+   * authored French-first; Arabic and English are suffixed. Anything missing
+   * falls back to French rather than rendering blank, the same rule `t()` uses.
+   *
+   * This used to hardcode `locale === "ar" ? ... : obj.fr`, which meant an
+   * English visitor got French for every sector, position, contract type and
+   * city on the site — the interface chrome translated but nothing else did.
    */
   const pick = useCallback(
     (obj, field = "") => {
       if (!obj) return "";
+
       if (field) {
-        const arKey = `${field}Ar`;
-        return locale === "ar" ? obj[arKey] || obj[field] : obj[field];
+        const base = obj[field];
+        if (locale === "fr") return base;
+        return obj[`${field}${LOCALE_SUFFIX[locale]}`] || base;
       }
-      return locale === "ar" ? obj.ar || obj.fr : obj.fr;
+
+      if (locale === "fr") return obj.fr;
+      return obj[locale] || obj.fr;
     },
     [locale]
   );

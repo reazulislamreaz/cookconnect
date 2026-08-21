@@ -15,6 +15,7 @@
 // click in it is all a component has to do.
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChefHat, X } from "lucide-react";
 import { useSession } from "@/lib/session";
@@ -56,7 +57,14 @@ export function SignupGateProvider({ children }) {
 function GateModal({ onClose }) {
   const t = useT();
 
-  return (
+  // Portalled to <body> rather than rendered inline. Mounting an overlay in the
+  // middle of the page tree means React inserts and removes a node among
+  // siblings that browser extensions also touch, which is how you end up with
+  // "NotFoundError: Failed to execute 'removeChild' on 'Node'". A portal keeps
+  // the overlay in its own container that only React owns.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
       role="dialog"
@@ -100,7 +108,8 @@ function GateModal({ onClose }) {
           </Link>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

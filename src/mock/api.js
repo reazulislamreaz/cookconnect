@@ -9,6 +9,8 @@ import { CANDIDATES, getCandidate, CURRENT_CANDIDATE_ID } from "./candidates";
 import { EMPLOYERS, getEmployer, CURRENT_EMPLOYER_ID } from "./employers";
 import { APPLICATIONS, SAVED_PROFILES, MY_APPLICATIONS } from "./applications";
 import { NOTIFICATIONS } from "./notifications";
+import { getJSON, setValue, SESSION_KEY } from "@/lib/browserStore";
+import { getProfileCompletion } from "@/lib/profileCompletion";
 
 /** Change Requirements 07: "Display 12 profiles per page". */
 export const PAGE_SIZE = 12;
@@ -19,6 +21,42 @@ export const GUEST_MAX_PAGES = 1;
 const delay = (ms = 220) => new Promise((r) => setTimeout(r, ms));
 
 const matches = (value, filter) => !filter || filter === "all" || value === filter;
+
+/* ------------------------------------------------- candidate profile edits */
+
+/**
+ * Profile edits, layered over the read-only fixtures.
+ *
+ * The fixtures in mock/candidates.js are module constants, so a saved profile
+ * used to vanish the moment the component re-fetched: "Save" set a banner and
+ * changed nothing. That made the "Incomplete Profile" gate a dead end — it
+ * sent a candidate to Edit My Profile, and completing the form still left them
+ * blocked, because the next read returned the original blank fields.
+ *
+ * Edits live in browser storage, keyed by candidate id, and are merged on the
+ * way out. When this layer is replaced by a real API, this is one PATCH call
+ * and the merge disappears.
+ */
+const PROFILE_EDITS_KEY = "nkhedmou.profileEdits";
+
+const allProfileEdits = () => getJSON(PROFILE_EDITS_KEY, {}) || {};
+
+/**
+ * `completion` is recomputed rather than carried over from the fixture: it is
+ * derived from the required fields, so a merge that fills one of them has to
+ * move the percentage with it.
+ */
+function withEdits(candidate) {
+  if (!candidate) return candidate;
+  const patch = allProfileEdits()[candidate.id];
+  if (!patch) return candidate;
+
+  const merged = { ...candidate, ...patch };
+  return { ...merged, completion: getProfileCompletion(merged).percent };
+}
+
+const currentCandidateId = () =>
+  getJSON(SESSION_KEY, null)?.user?.id || CURRENT_CANDIDATE_ID;
 
 function paginate(items, page, isLoggedIn) {
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
@@ -125,15 +163,38 @@ export async function searchCandidates({
  */
 export async function fetchCandidate(id, { asEmployer = false } = {}) {
   await delay(150);
-  const c = getCandidate(id);
+  const c = withEdits(getCandidate(id));
   if (!c) return null;
   const { phone, ...rest } = c;
   return asEmployer ? { ...rest, phone } : rest;
 }
 
+/**
+ * The signed-in candidate.
+ *
+ * Reads the demo session straight from browser storage rather than taking an
+ * id argument, so every caller keeps its existing signature. This used to
+ * return CURRENT_CANDIDATE_ID unconditionally, which meant signing in as the
+ * incomplete-profile demo account still loaded the 100%-complete fixture and
+ * the profile gate could never be observed.
+ */
 export async function fetchCurrentCandidate() {
   await delay(120);
-  return getCandidate(CURRENT_CANDIDATE_ID);
+  return withEdits(getCandidate(currentCandidateId()));
+}
+
+/**
+ * Persist the signed-in candidate's profile and return the saved result, so a
+ * caller can show the new completion percentage without a second round trip.
+ */
+export async function saveCurrentCandidate(patch) {
+  await delay(180);
+
+  const id = currentCandidateId();
+  const edits = allProfileEdits();
+  setValue(PROFILE_EDITS_KEY, { ...edits, [id]: { ...(edits[id] || {}), ...patch } });
+
+  return withEdits(getCandidate(id));
 }
 
 /* -------------------------------------------------------------- employer */

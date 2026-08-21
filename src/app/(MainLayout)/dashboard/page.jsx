@@ -24,7 +24,7 @@ const TONES = {
 
 export default function CandidateDashboard() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
 
   const [profile, setProfile] = useState(null);
   const [applications, setApplications] = useState(null);
@@ -131,7 +131,7 @@ export default function CandidateDashboard() {
                     <img src={app.job?.logo} alt="" className="h-11 w-11 rounded-lg object-cover" />
                     <div className="min-w-0">
                       <p className="truncate font-medium text-gray-900">
-                        {locale === "ar" ? app.job?.titleAr : app.job?.title}
+                        {pick(app.job, "title")}
                       </p>
                       <p className="truncate text-sm text-gray-500">
                         {app.job?.employerName} · {pick(city)}

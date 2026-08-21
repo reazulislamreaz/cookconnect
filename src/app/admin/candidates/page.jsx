@@ -53,7 +53,7 @@ const COMPLETION_OPTIONS = [
 
 export default function AdminCandidatesPage() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
 
   const [filters, setFilters] = useState(INITIAL);
   // Local overrides so the demo actions visibly change a row.
@@ -198,7 +198,7 @@ export default function AdminCandidatesPage() {
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap text-gray-700">
-                  {locale === "ar" ? c.titleAr : c.title}
+                  {pick(c, "title")}
                 </Td>
                 <Td className="whitespace-nowrap text-gray-700">{pick(getCity(c.city))}</Td>
                 <Td className="whitespace-nowrap text-gray-700">

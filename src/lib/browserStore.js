@@ -12,6 +12,12 @@
 // (so server HTML and the first client paint agree) and then switches to the
 // live value, with React handling the transition rather than an effect.
 
+/**
+ * Where the demo session lives. Declared here rather than in session.jsx so the
+ * mock API layer can read it without importing React context.
+ */
+export const SESSION_KEY = "nkhedmou.session";
+
 const listeners = new Set();
 
 /** Snapshots must be referentially stable between reads or React re-renders forever. */

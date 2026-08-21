@@ -31,7 +31,7 @@ const TABS = [
 
 export default function JobManagementPage() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
 
   const [jobs, setJobs] = useState(null);
   const [tab, setTab] = useState("active");
@@ -115,7 +115,7 @@ export default function JobManagementPage() {
                     <img src={job.logo} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-gray-900">
-                        {locale === "ar" ? job.titleAr : job.title}
+                        {pick(job, "title")}
                       </p>
                       <p className="truncate text-sm text-gray-500">{pick(city)}</p>
                       <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-400">

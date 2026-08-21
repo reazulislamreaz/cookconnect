@@ -72,20 +72,20 @@ export const offerStats = () => {
 // ClientDoc 16: most searched job titles, most searched cities, average salary.
 
 export const MOST_SEARCHED_TITLES = [
-  { id: "cook", fr: "Cuisinier", ar: "طباخ", count: 1840 },
-  { id: "waiter", fr: "Serveur", ar: "سيرفور", count: 1512 },
-  { id: "head-chef", fr: "Chef de cuisine", ar: "شيف دكوزينة", count: 1233 },
-  { id: "receptionist", fr: "Réceptionniste", ar: "ريسبسيونيست", count: 987 },
-  { id: "pastry-chef", fr: "Pâtissier", ar: "باتيسيي", count: 764 },
-  { id: "barista", fr: "Barista", ar: "باريستا", count: 611 },
+  { id: "cook", fr: "Cuisinier", ar: "طباخ", en: "Cook", count: 1840 },
+  { id: "waiter", fr: "Serveur", ar: "سيرفور", en: "Waiter", count: 1512 },
+  { id: "head-chef", fr: "Chef de cuisine", ar: "شيف دكوزينة", en: "Head Chef", count: 1233 },
+  { id: "receptionist", fr: "Réceptionniste", ar: "ريسبسيونيست", en: "Receptionist", count: 987 },
+  { id: "pastry-chef", fr: "Pâtissier", ar: "باتيسيي", en: "Pastry Chef", count: 764 },
+  { id: "barista", fr: "Barista", ar: "باريستا", en: "Barista", count: 611 },
 ];
 
 export const MOST_SEARCHED_CITIES = [
-  { id: "casablanca", fr: "Casablanca", ar: "الدار البيضاء", count: 3120 },
-  { id: "marrakech", fr: "Marrakech", ar: "مراكش", count: 2415 },
-  { id: "rabat", fr: "Rabat", ar: "الرباط", count: 1880 },
-  { id: "tanger", fr: "Tanger", ar: "طنجة", count: 1344 },
-  { id: "agadir", fr: "Agadir", ar: "أݣادير", count: 1102 },
+  { id: "casablanca", fr: "Casablanca", ar: "الدار البيضاء", en: "Casablanca", count: 3120 },
+  { id: "marrakech", fr: "Marrakech", ar: "مراكش", en: "Marrakesh", count: 2415 },
+  { id: "rabat", fr: "Rabat", ar: "الرباط", en: "Rabat", count: 1880 },
+  { id: "tanger", fr: "Tanger", ar: "طنجة", en: "Tangier", count: 1344 },
+  { id: "agadir", fr: "Agadir", ar: "أݣادير", en: "Agadir", count: 1102 },
 ];
 
 export const averageSalary = () => {
@@ -114,18 +114,22 @@ export const REPORTED_OFFERS = [
 /* ------------------------------------------------------- activity log */
 // ClientDoc 20: keep a history of admin actions, employer access to candidate
 // contact details, and photo upload events.
+//
+// `detail` is a system-generated label, so it carries translations. `actor` and
+// `target` are names — of a person, an establishment or a record — and are left
+// as authored; only the administrator role names translate.
 
 export const ACTIVITY_LOG = [
-  { id: "log-1", type: "contact-access", actor: "La Table Casablancaise", target: "Youssef El Amrani", detail: "Consultation des coordonnées", at: "2026-08-17 09:12" },
-  { id: "log-2", type: "admin", actor: "Admin principal", target: "job-8", detail: "Offre approuvée", at: "2026-08-17 08:55" },
-  { id: "log-3", type: "photo", actor: "Fatima Bennani", target: "cand-2", detail: "3 photos de préparations importées", at: "2026-08-17 08:40" },
-  { id: "log-4", type: "contact-access", actor: "Riad Dar Zaman", target: "Salma Idrissi", detail: "Consultation des coordonnées", at: "2026-08-16 17:22" },
-  { id: "log-5", type: "admin", actor: "Sous-admin — Modération", target: "ph-2", detail: "Photo refusée (contenu inapproprié)", at: "2026-08-16 16:03" },
-  { id: "log-6", type: "admin", actor: "Admin principal", target: "cand-14", detail: "Profil vérifié", at: "2026-08-16 14:47" },
-  { id: "log-7", type: "photo", actor: "Mehdi Tazi", target: "cand-5", detail: "Photo de profil importée", at: "2026-08-16 11:31" },
-  { id: "log-8", type: "contact-access", actor: "Sakura Sushi Bar", target: "Hamza Alaoui", detail: "Consultation des coordonnées", at: "2026-08-15 15:09" },
-  { id: "log-9", type: "admin", actor: "Admin principal", target: "emp-4", detail: "Employeur en attente de vérification", at: "2026-08-15 10:18" },
-  { id: "log-10", type: "admin", actor: "Sous-admin — Offres", target: "job-18", detail: "Offre rejetée (description incomplète)", at: "2026-08-14 18:02" },
+  { id: "log-1", type: "contact-access", actor: "La Table Casablancaise", target: "Youssef El Amrani", detail: "Consultation des coordonnées", detailAr: "الاطلاع على معلومات التواصل", detailEn: "Contact details viewed", at: "2026-08-17 09:12" },
+  { id: "log-2", type: "admin", actor: "Admin principal", actorAr: "الأدمين الرئيسي", actorEn: "Main administrator", target: "job-8", detail: "Offre approuvée", detailAr: "العرض تصادق عليه", detailEn: "Offer approved", at: "2026-08-17 08:55" },
+  { id: "log-3", type: "photo", actor: "Fatima Bennani", target: "cand-2", detail: "3 photos de préparations importées", detailAr: "3 تصاور ديال التحضيرات تزادو", detailEn: "3 preparation photos uploaded", at: "2026-08-17 08:40" },
+  { id: "log-4", type: "contact-access", actor: "Riad Dar Zaman", target: "Salma Idrissi", detail: "Consultation des coordonnées", detailAr: "الاطلاع على معلومات التواصل", detailEn: "Contact details viewed", at: "2026-08-16 17:22" },
+  { id: "log-5", type: "admin", actor: "Sous-admin — Modération", actorAr: "أدمين مساعد — المراقبة", actorEn: "Sub-admin — Moderation", target: "ph-2", detail: "Photo refusée (contenu inapproprié)", detailAr: "التصويرة مرفوضة (محتوى ماشي مناسب)", detailEn: "Photo rejected (inappropriate content)", at: "2026-08-16 16:03" },
+  { id: "log-6", type: "admin", actor: "Admin principal", actorAr: "الأدمين الرئيسي", actorEn: "Main administrator", target: "cand-14", detail: "Profil vérifié", detailAr: "البروفيل متحقّق منو", detailEn: "Profile verified", at: "2026-08-16 14:47" },
+  { id: "log-7", type: "photo", actor: "Mehdi Tazi", target: "cand-5", detail: "Photo de profil importée", detailAr: "تصويرة البروفيل تزادت", detailEn: "Profile photo uploaded", at: "2026-08-16 11:31" },
+  { id: "log-8", type: "contact-access", actor: "Sakura Sushi Bar", target: "Hamza Alaoui", detail: "Consultation des coordonnées", detailAr: "الاطلاع على معلومات التواصل", detailEn: "Contact details viewed", at: "2026-08-15 15:09" },
+  { id: "log-9", type: "admin", actor: "Admin principal", actorAr: "الأدمين الرئيسي", actorEn: "Main administrator", target: "emp-4", detail: "Employeur en attente de vérification", detailAr: "مشغّل فانتظار التحقق", detailEn: "Employer awaiting verification", at: "2026-08-15 10:18" },
+  { id: "log-10", type: "admin", actor: "Sous-admin — Offres", actorAr: "أدمين مساعد — العروض", actorEn: "Sub-admin — Offers", target: "job-18", detail: "Offre rejetée (description incomplète)", detailAr: "العرض مرفوض (الوصف ناقص)", detailEn: "Offer rejected (incomplete description)", at: "2026-08-14 18:02" },
 ];
 
 /* --------------------------------------------------------- user feedback */
@@ -144,14 +148,14 @@ export const FEEDBACK = [
 // e.g. one who may only approve photos and offers.
 
 export const PERMISSIONS = [
-  { id: "approve-offers", fr: "Approuver les offres", ar: "المصادقة على العروض" },
-  { id: "approve-photos", fr: "Modérer les photos", ar: "مراقبة التصاور" },
-  { id: "manage-candidates", fr: "Gérer les candidats", ar: "تدبير المترشحين" },
-  { id: "manage-employers", fr: "Gérer les employeurs", ar: "تدبير المشغّلين" },
-  { id: "export-cv", fr: "Exporter la base CV", ar: "تصدير قاعدة السي في" },
-  { id: "manage-banners", fr: "Gérer les bannières", ar: "تدبير البانيرات" },
-  { id: "delete-users", fr: "Supprimer des comptes", ar: "حذف الحسابات" },
-  { id: "manage-admins", fr: "Gérer les administrateurs", ar: "تدبير الإداريين" },
+  { id: "approve-offers", fr: "Approuver les offres", ar: "المصادقة على العروض", en: "Approve offers" },
+  { id: "approve-photos", fr: "Modérer les photos", ar: "مراقبة التصاور", en: "Moderate photos" },
+  { id: "manage-candidates", fr: "Gérer les candidats", ar: "تدبير المترشحين", en: "Manage candidates" },
+  { id: "manage-employers", fr: "Gérer les employeurs", ar: "تدبير المشغّلين", en: "Manage employers" },
+  { id: "export-cv", fr: "Exporter la base CV", ar: "تصدير قاعدة السي في", en: "Export CV database" },
+  { id: "manage-banners", fr: "Gérer les bannières", ar: "تدبير البانيرات", en: "Manage banners" },
+  { id: "delete-users", fr: "Supprimer des comptes", ar: "حذف الحسابات", en: "Delete accounts" },
+  { id: "manage-admins", fr: "Gérer les administrateurs", ar: "تدبير الإداريين", en: "Manage administrators" },
 ];
 
 export const ADMINS = [

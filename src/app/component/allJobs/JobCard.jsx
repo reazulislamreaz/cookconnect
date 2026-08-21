@@ -9,6 +9,10 @@
 //    go through `requireAuth`, so a guest gets the signup gate and a signed-in
 //    user proceeds normally. There is deliberately no separate Apply button
 //    next to the Sign Up one — the client asked for one button, not two.
+//
+// Applying is candidate-only: an employer browsing the board gets "View offer"
+// where a candidate gets "Apply now". The card body stays clickable for them,
+// since reading a competitor's offer is allowed.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,15 +20,17 @@ import { MapPin, Briefcase, CalendarDays, Clock, BadgeCheck } from "lucide-react
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { useSignupGate } from "@/app/component/ui/SignupGate";
+import { useSession } from "@/lib/session";
 import { getCity } from "@/mock/cities";
 import { REQUIREMENT_BY_ID, EXPERIENCE_LEVELS, CONTRACT_TYPES } from "@/mock/jobOptions";
 import { daysLeft } from "@/mock/jobs";
 
 export default function JobCard({ job }) {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
   const router = useRouter();
   const { requireAuth, isLoggedIn } = useSignupGate();
+  const { isEmployer } = useSession();
 
   const href = `/allJobs/${job.id}`;
   const city = getCity(job.city);
@@ -51,7 +57,7 @@ export default function JobCard({ job }) {
         <img src={job.logo} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-gray-900">
-            {locale === "ar" ? job.titleAr : job.title}
+            {pick(job, "title")}
           </h3>
           <p className="truncate text-sm text-gray-600">{job.employerName}</p>
         </div>
@@ -69,14 +75,16 @@ export default function JobCard({ job }) {
 
       {/* Tags */}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Tag>{pick(CONTRACT_TYPES.find((c) => c.id === job.contractType))}</Tag>
+        {/* Abbreviated: the card tag sits beside the salary and has no room
+            for the full contract wording. */}
+        <Tag>{pick(CONTRACT_TYPES.find((c) => c.id === job.contractType), "short")}</Tag>
         <Tag>
           {job.salaryMin.toLocaleString()} – {job.salaryMax.toLocaleString()} {job.currency}
         </Tag>
       </div>
 
       <p className="mt-3 line-clamp-2 text-sm text-gray-700">
-        {locale === "ar" ? job.descriptionAr : job.description}
+        {pick(job, "description")}
       </p>
 
       {/* First two requirements */}
@@ -111,8 +119,17 @@ export default function JobCard({ job }) {
           </span>
         </div>
 
-        {/* One action only. Guests get Sign Up, members get Apply. */}
-        {isLoggedIn ? (
+        {/* One action only. Guests get Sign Up, employers get View offer,
+            candidates get Apply. */}
+        {isEmployer ? (
+          <Link
+            href={href}
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 rounded-md border border-gray-300 px-5 py-2 text-center text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            {t("common.seeOffer")}
+          </Link>
+        ) : isLoggedIn ? (
           <Link
             href={href}
             onClick={(e) => e.stopPropagation()}

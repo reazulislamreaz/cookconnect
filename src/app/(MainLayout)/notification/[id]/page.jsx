@@ -11,7 +11,7 @@ import EmptyState from "@/app/component/ui/EmptyState";
 
 export default function NotificationDetailPage() {
   const t = useT();
-  const { locale } = useLocale();
+  const { pick } = useLocale();
   const { id } = useParams();
   const [item, setItem] = useState(undefined);
 
@@ -47,10 +47,10 @@ export default function NotificationDetailPage() {
 
       <article className="rounded-xl border border-gray-200 bg-white p-6">
         <h1 className="text-xl font-bold text-gray-900">
-          {locale === "ar" ? item.titleAr : item.title}
+          {pick(item, "title")}
         </h1>
         <p className="mt-1 text-xs text-gray-400">{item.date}</p>
-        <p className="mt-4 text-sm leading-relaxed text-gray-700">{item.body}</p>
+        <p className="mt-4 text-sm leading-relaxed text-gray-700">{pick(item, "body")}</p>
       </article>
     </div>
   );

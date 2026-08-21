@@ -6,13 +6,17 @@
 // Guests get the signup gate; signed-in candidates with an incomplete profile
 // get the "Incomplete Profile" banner and are sent to Edit My Profile
 // (Change Requirements 06); everyone else applies.
+//
+// Applying is a candidate-only action. An employer may read any offer — their
+// own or a competitor's — but never gets an Apply button, so the profile gate
+// below is only ever evaluated for a candidate profile that actually exists.
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   MapPin, Briefcase, CalendarDays, Clock, ArrowLeft, Check,
-  AlertTriangle, Building2, Wallet,
+  AlertTriangle, Building2, Wallet, Eye,
 } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
@@ -30,14 +34,17 @@ import EmptyState from "@/app/component/ui/EmptyState";
 
 export default function JobDetailPage() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
   const { id } = useParams();
   const router = useRouter();
-  const { isLoggedIn, isCandidate } = useSession();
+  const { isLoggedIn, isCandidate, isEmployer } = useSession();
   const { requireAuth } = useSignupGate();
 
   const [job, setJob] = useState(undefined);
-  const [profile, setProfile] = useState(null);
+  // `undefined` means "not fetched yet", distinct from `null` meaning "no
+  // candidate profile". getProfileCompletion() scores both as 0%, so without
+  // the distinction a click during the fetch reads as an incomplete profile.
+  const [profile, setProfile] = useState(undefined);
   const [applied, setApplied] = useState(false);
   const [incomplete, setIncomplete] = useState(false);
 
@@ -50,7 +57,14 @@ export default function JobDetailPage() {
   }, [isCandidate]);
 
   const apply = requireAuth(async () => {
-    const completion = getProfileCompletion(profile);
+    // A visitor can click Apply before the profile request settles. Reading the
+    // state here would score an unloaded profile as 0% and show a complete
+    // candidate the "Incomplete Profile" banner, so fetch it on demand instead
+    // of trusting whatever state happens to hold at click time. Only the narrow
+    // race window pays for the extra call; every other click reads the state.
+    const current = profile === undefined ? await fetchCurrentCandidate() : profile;
+
+    const completion = getProfileCompletion(current);
     if (!completion.isComplete) {
       setIncomplete(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -130,7 +144,7 @@ export default function JobDetailPage() {
             <img src={job.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
             <div>
               <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-                {locale === "ar" ? job.titleAr : job.title}
+                {pick(job, "title")}
               </h1>
               <p className="mt-1 text-sm text-gray-600">{job.employerName}</p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-500">
@@ -165,9 +179,20 @@ export default function JobDetailPage() {
           <span>{t("jobs.applicants", { n: job.applicants })}</span>
         </div>
 
-        {/* The single action button — no separate Sign Up next to it. */}
+        {/* The single action button — no separate Sign Up next to it.
+            An employer gets a read-only notice in its place. */}
         <div className="mt-5">
-          {applied ? (
+          {isEmployer ? (
+            <p className="flex items-start gap-2 rounded-md bg-gray-50 p-3 text-sm text-gray-600">
+              <Eye size={16} className="mt-0.5 shrink-0" />
+              <span>
+                <strong className="font-semibold text-gray-800">
+                  {t("jobs.employerViewOnly")}
+                </strong>{" "}
+                — {t("jobs.employerViewOnlyBody")}
+              </span>
+            </p>
+          ) : applied ? (
             <button
               disabled
               className="w-full cursor-default rounded-md bg-brand-soft py-3 text-sm font-semibold text-brand-dark sm:w-auto sm:px-10"
@@ -188,7 +213,7 @@ export default function JobDetailPage() {
       {/* Description */}
       <Panel title={t("common.description")}>
         <p className="text-sm leading-relaxed text-gray-700">
-          {locale === "ar" ? job.descriptionAr : job.description}
+          {pick(job, "description")}
         </p>
       </Panel>
 

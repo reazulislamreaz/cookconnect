@@ -8,12 +8,14 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Mail, Phone, MapPin, Check } from "lucide-react";
 
-import { useT } from "@/i18n/LocaleProvider";
+import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { Field, Input, Textarea } from "@/app/component/ui/Fields";
 import { submitFeedback } from "@/mock/api";
+import { COUNTRY } from "@/mock/cities";
 
 export default function ContactPage() {
   const t = useT();
+  const { pick } = useLocale();
   const [sent, setSent] = useState(false);
 
   const {
@@ -34,7 +36,7 @@ export default function ContactPage() {
       <section className="bg-brand-tint px-4 py-14 text-center">
         <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">{t("footer.contact")}</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-gray-600 sm:text-base">
-          Une question, une suggestion ou un problème ? Écrivez-nous, nous répondons à chaque message.
+          {t("contact.subtitle")}
         </p>
       </section>
 
@@ -43,7 +45,7 @@ export default function ContactPage() {
         <div className="space-y-4">
           <InfoCard icon={Mail} label={t("common.email")} value="contact@nkhedmou.ma" />
           <InfoCard icon={Phone} label={t("common.phone")} value="+212 5 22 XX XX XX" />
-          <InfoCard icon={MapPin} label={t("common.city")} value="Casablanca, Maroc" />
+          <InfoCard icon={MapPin} label={t("common.city")} value={`Casablanca, ${pick(COUNTRY)}`} />
         </div>
 
         {/* Form */}

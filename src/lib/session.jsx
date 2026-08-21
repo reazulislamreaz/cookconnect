@@ -8,9 +8,7 @@
 // should be what you see on a fresh load.
 
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import { subscribe, getJSON, setValue, removeValue } from "@/lib/browserStore";
-
-const STORAGE_KEY = "nkhedmou.session";
+import { subscribe, getJSON, setValue, removeValue, SESSION_KEY as STORAGE_KEY } from "@/lib/browserStore";
 const SessionContext = createContext(null);
 
 export const ROLES = { GUEST: "guest", CANDIDATE: "candidate", EMPLOYER: "employer" };
@@ -30,6 +28,21 @@ const DEMO_USERS = {
   },
 };
 
+/**
+ * A candidate whose profile is missing required fields, so the "Incomplete
+ * Profile" gate (Change Requirements 06) can be exercised from the sign-in
+ * screen. The primary demo candidate is deliberately left at 100% complete,
+ * which is why the gate looked like it was not implemented — there was no
+ * account that could trigger it. Matches INCOMPLETE_CANDIDATE_ID in
+ * mock/candidates.js.
+ */
+export const DEMO_INCOMPLETE_CANDIDATE = {
+  id: "cand-4",
+  name: "Salma Idrissi",
+  email: "salma.idrissi@example.ma",
+  avatar: "https://i.ibb.co/j9Wwj0H0/Rectangle-116.png",
+};
+
 const GUEST = { role: ROLES.GUEST, user: null };
 
 export function SessionProvider({ children }) {
@@ -45,8 +58,12 @@ export function SessionProvider({ children }) {
     () => GUEST
   );
 
-  const login = useCallback((role) => {
-    const next = { role, user: DEMO_USERS[role] || null };
+  /**
+   * `user` overrides the default demo account for the role — used by the
+   * sign-in screen to pick the incomplete-profile candidate.
+   */
+  const login = useCallback((role, user) => {
+    const next = { role, user: user || DEMO_USERS[role] || null };
     setValue(STORAGE_KEY, next);
     return next;
   }, []);

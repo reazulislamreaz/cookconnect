@@ -86,10 +86,22 @@
     "howItWorksSubtitle": "Quatre étapes simples, de l'inscription au recrutement.",
     "step": "Étape",
     "steps": {
-      "one": { "title": "Créez votre compte", "desc": "Nom, prénom, email et mot de passe. Rien de plus pour commencer." },
-      "two": { "title": "Complétez votre profil", "desc": "Secteur, poste, expérience et photo. Créez votre CV directement sur la plateforme." },
-      "three": { "title": "Explorez les offres", "desc": "Filtrez par ville, poste et type de contrat, ou lancez une recherche complète." },
-      "four": { "title": "Postulez et soyez contacté", "desc": "Les employeurs consultent votre profil et vous répondent directement." }
+      "one": {
+        "title": "Créez votre compte",
+        "desc": "Nom, prénom, email et mot de passe. Rien de plus pour commencer."
+      },
+      "two": {
+        "title": "Complétez votre profil",
+        "desc": "Secteur, poste, expérience et photo. Créez votre CV directement sur la plateforme."
+      },
+      "three": {
+        "title": "Explorez les offres",
+        "desc": "Filtrez par ville, poste et type de contrat, ou lancez une recherche complète."
+      },
+      "four": {
+        "title": "Postulez et soyez contacté",
+        "desc": "Les employeurs consultent votre profil et vous répondent directement."
+      }
     },
     "different": {
       "chefs": "Profils qualifiés",
@@ -103,6 +115,8 @@
     "latestOffersSubtitle": "Un aperçu des offres publiées cette semaine.",
     "seeAllOffers": "Voir toutes les offres",
     "guestNotice": "Créez un compte gratuit pour voir toutes les offres et postuler.",
+    "partners": "Ils nous font confiance",
+    "partnersSubtitle": "Restaurants, hôtels et boulangeries qui recrutent via Nkhedmou.ma.",
     "advertising": "Publicité"
   },
   "auth": {
@@ -141,6 +155,8 @@
     "strengthMedium": "Moyen",
     "strengthStrong": "Fort",
     "attemptsWarning": "Mot de passe incorrect. Il vous reste {n} tentative(s).",
+    "demoIncomplete": "Démo : profil incomplet",
+    "demoIncompleteHint": "Se connecter comme candidat auquel il manque des champs obligatoires, pour voir le blocage \"Profil incomplet\" sur une offre.",
     "lockedTitle": "Compte temporairement suspendu",
     "lockedBody": "Après 3 tentatives échouées, votre compte est temporairement bloqué. Nous vous avons envoyé un code de vérification pour réinitialiser votre mot de passe.",
     "lockedCta": "Réinitialiser mon mot de passe",
@@ -219,7 +235,9 @@
     "similarOffers": "Offres similaires",
     "applied": "Candidature envoyée",
     "appliedBody": "Votre candidature a bien été transmise à l'employeur.",
-    "signUpToApply": "S'inscrire pour postuler"
+    "signUpToApply": "S'inscrire pour postuler",
+    "employerViewOnly": "Consultation employeur",
+    "employerViewOnlyBody": "Vous consultez cette offre en tant qu'employeur. La candidature est réservée aux comptes candidats."
   },
   "candidates": {
     "title": "Trouver des profils",
@@ -474,5 +492,128 @@
     "contact": "Nous contacter",
     "aboutUs": "Qui sommes-nous",
     "rights": "Tous droits réservés."
+  },
+  "about": {
+    "intro1": "Nkhedmou.ma — « nkhedmou » veut dire « on travaille » en darija — est né d'un constat simple : au Maroc, les cuisiniers, boulangers, pâtissiers et le personnel d'hôtellerie trouvent encore leur travail par le bouche-à-oreille, tandis que les restaurants et les hôtels peinent à recruter des profils qualifiés.",
+    "intro2": "Notre objectif est de rassembler ces deux mondes au même endroit, avec une plateforme simple, sécurisée et pensée d'abord pour le mobile, puisque c'est là que se trouvent la plupart de nos utilisateurs.",
+    "candidatesTitle": "Pour les candidats",
+    "candidatesBody": "Créez un profil complet ou générez votre CV directement sur la plateforme, puis postulez aux offres près de chez vous. L'inscription est gratuite.",
+    "employersTitle": "Pour les employeurs",
+    "employersBody": "Publiez vos offres, filtrez les profils par ville, secteur, poste et expérience, et gardez de côté les candidats qui vous intéressent.",
+    "verifiedTitle": "Des offres vérifiées",
+    "verifiedBody": "Chaque offre d'emploi est contrôlée et approuvée par notre équipe avant d'être publiée. Les coordonnées des candidats sont protégées.",
+    "languagesTitle": "En français, en darija et en anglais",
+    "languagesBody": "Toute la plateforme est disponible en français, en arabe marocain et en anglais, pour que la langue ne soit jamais un obstacle."
+  },
+  "privacySections": [
+    {
+      "title": "Quelles données collectons-nous ?",
+      "body": [
+        "À l'inscription, nous collectons uniquement votre prénom, votre nom, votre adresse email et votre mot de passe.",
+        "Lorsque vous complétez votre profil, vous pouvez ajouter votre numéro de téléphone, votre ville, votre secteur, votre poste, votre expérience, votre formation, vos expériences précédentes, une photo de profil, un CV et, pour certains métiers de cuisine et de pâtisserie, des photos de vos préparations."
+      ]
+    },
+    {
+      "title": "Protection de vos coordonnées",
+      "body": [
+        "Votre numéro de téléphone n'est jamais affiché publiquement. Il n'est accessible qu'aux employeurs vérifiés, dans le cadre des règles de recrutement de la plateforme.",
+        "Chaque accès d'un employeur à vos coordonnées est enregistré et traçable par l'administration.",
+        "Les employeurs disposent également d'une option leur permettant de masquer leur propre numéro de téléphone aux candidats."
+      ]
+    },
+    {
+      "title": "Fichiers importés",
+      "body": [
+        "Les CV et les photos sont contrôlés avant d'être stockés : type de fichier, taille et qualité d'image sont vérifiés.",
+        "Les fichiers ne correspondant pas aux formats autorisés sont refusés. Un CV doit être au format PDF, DOC ou DOCX et ne pas dépasser 5 Mo.",
+        "L'administration peut retirer toute photo inappropriée et bloquer un compte en cas d'envois abusifs répétés."
+      ]
+    },
+    {
+      "title": "Journal d'activité",
+      "body": [
+        "La plateforme conserve un historique des actions administratives importantes, des accès aux coordonnées des candidats et des envois de photos."
+      ]
+    },
+    {
+      "title": "Modération des offres et des profils",
+      "body": [
+        "Toutes les offres d'emploi sont contrôlées et approuvées par l'administration avant publication.",
+        "Vous êtes notifié sur la plateforme et par email lorsque votre profil ou votre offre est approuvé."
+      ]
+    },
+    {
+      "title": "Vos droits",
+      "body": [
+        "Vous pouvez à tout moment consulter, corriger ou supprimer les informations de votre profil depuis la page « Modifier mon profil ».",
+        "Pour toute demande relative à vos données, écrivez-nous à contact@nkhedmou.ma."
+      ]
+    }
+  ],
+  "privacyIntro": "Cette politique explique quelles données Nkhedmou.ma collecte, comment elles sont utilisées et comment elles sont protégées.",
+  "termsSections": [
+    {
+      "title": "1. Objet de la plateforme",
+      "body": [
+        "Nkhedmou.ma met en relation les professionnels de la restauration, de la boulangerie-pâtisserie et de l'hôtellerie avec les établissements qui recrutent au Maroc.",
+        "La plateforme est un intermédiaire : elle n'est pas l'employeur et n'est pas partie au contrat de travail conclu entre un candidat et un établissement."
+      ]
+    },
+    {
+      "title": "2. Inscription et compte",
+      "body": [
+        "L'inscription est gratuite et requiert un prénom, un nom, une adresse email et un mot de passe.",
+        "Votre mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial.",
+        "Après trois tentatives de connexion échouées, votre compte est temporairement suspendu et un code de vérification vous est envoyé pour réinitialiser votre mot de passe.",
+        "Vous êtes responsable de l'exactitude des informations de votre profil."
+      ]
+    },
+    {
+      "title": "3. Accès des visiteurs",
+      "body": [
+        "Les visiteurs non inscrits peuvent consulter la première page des offres et des profils. La consultation d'une offre ou d'un profil complet nécessite la création d'un compte."
+      ]
+    },
+    {
+      "title": "4. Offres d'emploi",
+      "body": [
+        "Toutes les offres publiées par les employeurs sont contrôlées et approuvées par l'administration avant d'être visibles par les candidats.",
+        "La durée maximale de publication d'une offre est de 60 jours. Passé ce délai, l'offre est automatiquement retirée des offres actives.",
+        "Une offre expirée reste consultable dans l'historique de l'employeur, avec les candidatures reçues, et peut être republiée.",
+        "L'administration se réserve le droit de refuser, modifier ou retirer toute offre non conforme."
+      ]
+    },
+    {
+      "title": "5. Contenus publiés",
+      "body": [
+        "Vous garantissez détenir les droits sur les photos et documents que vous importez.",
+        "Les photos de préparations culinaires sont réservées aux métiers de cuisine, de boulangerie et de pâtisserie, et sont limitées à 8 photos par profil.",
+        "L'administration peut retirer tout contenu inapproprié et bloquer les comptes en cas de manquements répétés."
+      ]
+    },
+    {
+      "title": "6. Confidentialité des coordonnées",
+      "body": [
+        "Les numéros de téléphone des candidats ne sont pas publics et ne sont accessibles qu'aux employeurs vérifiés, dans le cadre des règles de recrutement de la plateforme.",
+        "Toute consultation de coordonnées est enregistrée et traçable.",
+        "L'utilisation des coordonnées à des fins de démarchage, de revente ou de collecte massive est strictement interdite et entraîne la fermeture du compte."
+      ]
+    },
+    {
+      "title": "7. Publicité",
+      "body": [
+        "La plateforme affiche des espaces publicitaires. Nkhedmou.ma n'est pas responsable du contenu ou des offres des annonceurs tiers."
+      ]
+    },
+    {
+      "title": "8. Contact",
+      "body": [
+        "Pour toute question relative aux présentes conditions : contact@nkhedmou.ma"
+      ]
+    }
+  ],
+  "termsIntro": "En créant un compte sur Nkhedmou.ma, vous acceptez les conditions ci-dessous.",
+  "contact": {
+    "subtitle": "Une question, une suggestion ou un problème ? Écrivez-nous, nous répondons à chaque message."
   }
 }

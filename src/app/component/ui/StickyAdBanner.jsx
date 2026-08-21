@@ -13,6 +13,7 @@
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { X } from "lucide-react";
+import { useLocale } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
 import { subscribe, getString, setValue } from "@/lib/browserStore";
 import { STICKY_BANNER } from "@/mock/banners";
@@ -21,6 +22,7 @@ const DISMISS_KEY = "nkhedmou.stickyAd.dismissed";
 
 export default function StickyAdBanner() {
   const { isLoggedIn } = useSession();
+  const { pick } = useLocale();
 
   // Dismissal lasts for the session only, so this reads sessionStorage rather
   // than localStorage. The server snapshot is "not dismissed", which is the
@@ -43,8 +45,8 @@ export default function StickyAdBanner() {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-brand-dark/30 bg-brand text-white shadow-[0_-2px_12px_rgba(0,0,0,0.12)]">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{STICKY_BANNER.title}</p>
-            <p className="truncate text-xs text-white/80">{STICKY_BANNER.subtitle}</p>
+            <p className="truncate text-sm font-semibold">{pick(STICKY_BANNER, "title")}</p>
+            <p className="truncate text-xs text-white/80">{pick(STICKY_BANNER, "subtitle")}</p>
           </div>
 
           {!isLoggedIn && (
@@ -52,7 +54,7 @@ export default function StickyAdBanner() {
               href={STICKY_BANNER.href}
               className="shrink-0 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand-tint sm:px-4 sm:text-sm"
             >
-              {STICKY_BANNER.cta}
+              {pick(STICKY_BANNER, "cta")}
             </Link>
           )}
 

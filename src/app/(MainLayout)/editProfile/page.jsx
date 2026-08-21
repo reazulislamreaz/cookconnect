@@ -20,15 +20,22 @@ import { Upload, FileText, Plus, Trash2, Check, AlertTriangle, Lock } from "luci
 import { useT } from "@/i18n/LocaleProvider";
 import { Field, Input, Select, Textarea } from "@/app/component/ui/Fields";
 import { AvatarUploader, PhotoGridUploader } from "@/app/component/ui/ImageUploader";
-import { SECTORS, getPositions, canUploadFoodPhotos, MAX_FOOD_PHOTOS } from "@/mock/sectors";
+import {
+  SECTORS, getPositions, canUploadFoodPhotos, MAX_FOOD_PHOTOS, POSITIONS_BY_SECTOR,
+} from "@/mock/sectors";
 import { CITIES, COUNTRY } from "@/mock/cities";
 import { EXPERIENCE_LEVELS, AVAILABILITY, CONTRACT_TYPES } from "@/mock/jobOptions";
-import { fetchCurrentCandidate } from "@/mock/api";
+import { fetchCurrentCandidate, saveCurrentCandidate } from "@/mock/api";
 import { getProfileCompletion } from "@/lib/profileCompletion";
 import { CV_ACCEPT, CV_MAX_BYTES, validateFile } from "@/lib/validation";
 
 const emptyTraining = { school: "", diploma: "", from: "", to: "" };
-const emptyHistory = { establishment: "", position: "", from: "", to: "" };
+// A past role is stored as a position id, never as typed text: Change
+// Requirements 08 "No Free-Text for Job Fields" applies to the work history
+// too, which was the one place a candidate could still type any job title they
+// liked. `establishment` stays free text — it is a business name, so no list
+// can cover it.
+const emptyHistory = { establishment: "", positionId: "", from: "", to: "" };
 
 export default function EditProfilePage() {
   const t = useT();
@@ -36,6 +43,7 @@ export default function EditProfilePage() {
 
   const [profile, setProfile] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [cvMode, setCvMode] = useState("upload");
   const [cvFile, setCvFile] = useState(null);
   const [cvError, setCvError] = useState("");
@@ -91,7 +99,18 @@ export default function EditProfilePage() {
     setCvFile(file);
   };
 
-  const onSave = () => {
+  // Saving has to persist, not just show a banner. The "Incomplete Profile"
+  // gate on an offer sends a candidate here to fill in what is missing; if the
+  // save is cosmetic, the next read returns the original blank fields and they
+  // are still blocked — the gate becomes impossible to clear.
+  const onSave = async () => {
+    setSaving(true);
+    const next = await saveCurrentCandidate(profile);
+    setSaving(false);
+
+    // Adopt what was stored, so the completion figure on screen is the one the
+    // offer page will read rather than an optimistic local copy.
+    setProfile((p) => ({ ...p, ...next }));
     setSaved(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -300,7 +319,12 @@ export default function EditProfilePage() {
                 <Input value={row.establishment} onChange={(e) => setRow("history", i, "establishment", e.target.value)} />
               </Field>
               <Field label={t("profile.positionHeld")}>
-                <Input value={row.position} onChange={(e) => setRow("history", i, "position", e.target.value)} />
+                <Select
+                  groups={POSITIONS_BY_SECTOR}
+                  placeholder={t("common.select")}
+                  value={row.positionId}
+                  onChange={(e) => setRow("history", i, "positionId", e.target.value)}
+                />
               </Field>
               <Field label={t("profile.from")}>
                 <Input placeholder="2021" value={row.from} onChange={(e) => setRow("history", i, "from", e.target.value)} />
@@ -378,9 +402,10 @@ export default function EditProfilePage() {
         </button>
         <button
           onClick={onSave}
-          className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark"
+          disabled={saving}
+          className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark disabled:opacity-60"
         >
-          {t("profile.saveProfile")}
+          {saving ? t("common.loading") : t("profile.saveProfile")}
         </button>
       </div>
     </div>

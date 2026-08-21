@@ -4,81 +4,81 @@
 // a position can never be picked before its sector.
 
 export const SECTORS = [
-  { id: "hotel", fr: "Hôtellerie", ar: "الفندقة" },
-  { id: "restaurant", fr: "Restaurant / Café / Restauration collective", ar: "ريسطو / قهوة / إطعام جماعي" },
-  { id: "bakery", fr: "Boulangerie / Pâtisserie", ar: "مخبزة / حلويات" },
-  { id: "asian", fr: "Cuisine asiatique", ar: "الطبخ الآسيوي" },
+  { id: "hotel", fr: "Hôtellerie", ar: "الفندقة", en: "Hospitality" },
+  { id: "restaurant", fr: "Restaurant / Café / Restauration collective", ar: "ريسطو / قهوة / إطعام جماعي", en: "Restaurant / Café / Contract catering" },
+  { id: "bakery", fr: "Boulangerie / Pâtisserie", ar: "مخبزة / حلويات", en: "Bakery / Pastry" },
+  { id: "asian", fr: "Cuisine asiatique", ar: "الطبخ الآسيوي", en: "Asian cuisine" },
 ];
 
 // Positions keyed by sector id. `photos: true` marks the kitchen / bakery /
 // pastry roles from ClientDoc section 4 that may upload food photos.
 export const POSITIONS = {
   restaurant: [
-    { id: "executive-chef", fr: "Chef exécutif", ar: "شيف تنفيذي", photos: true },
-    { id: "head-chef", fr: "Chef de cuisine", ar: "شيف دكوزينة", photos: true },
-    { id: "sous-chef", fr: "Sous-chef", ar: "سو شيف", photos: true },
-    { id: "chef-de-partie", fr: "Chef de partie", ar: "شيف دي بارتي", photos: true },
-    { id: "garde-manger", fr: "Chef garde-manger", ar: "شيف كارد مانجي", photos: true },
-    { id: "demi-chef-de-partie", fr: "Demi-chef de partie", ar: "دمي شيف دي بارتي", photos: true },
-    { id: "cook", fr: "Cuisinier", ar: "طباخ", photos: true },
-    { id: "kitchen-commis", fr: "Commis de cuisine", ar: "كومي دكوزينة", photos: true },
-    { id: "sushiman", fr: "Sushiman / Chef sushi", ar: "سوشيمان / شيف سوشي", photos: true },
-    { id: "apprentice", fr: "Apprenti / Stagiaire", ar: "متمرن / ستاجير", photos: true },
-    { id: "dishwasher", fr: "Plongeur", ar: "بلونجور" },
-    { id: "cleaning-worker", fr: "Agent d'entretien / de nettoyage", ar: "عامل النظافة" },
-    { id: "chef-de-rang", fr: "Chef de rang", ar: "شيف دي رون", photos: true },
-    { id: "delivery-driver", fr: "Livreur", ar: "ليفرور", photos: true },
-    { id: "cashier", fr: "Caissier", ar: "كيسيي" },
-    { id: "pizzaiolo", fr: "Pizzaïolo", ar: "بيتزايولو", photos: true },
-    { id: "barman", fr: "Barman / Barmaid", ar: "بارمان / بارميد", photos: true },
-    { id: "barista", fr: "Barista", ar: "باريستا", photos: true },
-    { id: "waiter", fr: "Serveur", ar: "سيرفور" },
-    { id: "restaurant-manager", fr: "Directeur de site / Responsable de restaurant", ar: "مسؤول الريسطو" },
-    { id: "storekeeper", fr: "Magasinier / Gestionnaire de stock", ar: "ماغازينيي" },
-    { id: "valet", fr: "Voiturier", ar: "فواتوريي" },
+    { id: "executive-chef", fr: "Chef exécutif", ar: "شيف تنفيذي", en: "Executive Chef", photos: true },
+    { id: "head-chef", fr: "Chef de cuisine", ar: "شيف دكوزينة", en: "Head Chef", photos: true },
+    { id: "sous-chef", fr: "Sous-chef", ar: "سو شيف", en: "Sous Chef", photos: true },
+    { id: "chef-de-partie", fr: "Chef de partie", ar: "شيف دي بارتي", en: "Chef de Partie", photos: true },
+    { id: "garde-manger", fr: "Chef garde-manger", ar: "شيف كارد مانجي", en: "Garde Manger Chef", photos: true },
+    { id: "demi-chef-de-partie", fr: "Demi-chef de partie", ar: "دمي شيف دي بارتي", en: "Demi Chef de Partie", photos: true },
+    { id: "cook", fr: "Cuisinier", ar: "طباخ", en: "Cook", photos: true },
+    { id: "kitchen-commis", fr: "Commis de cuisine", ar: "كومي دكوزينة", en: "Kitchen Commis", photos: true },
+    { id: "sushiman", fr: "Sushiman / Chef sushi", ar: "سوشيمان / شيف سوشي", en: "Sushiman / Sushi Chef", photos: true },
+    { id: "apprentice", fr: "Apprenti / Stagiaire", ar: "متمرن / ستاجير", en: "Apprentice / Trainee", photos: true },
+    { id: "dishwasher", fr: "Plongeur", ar: "بلونجور", en: "Dishwasher" },
+    { id: "cleaning-worker", fr: "Agent d'entretien / de nettoyage", ar: "عامل النظافة", en: "Cleaning Operative" },
+    { id: "chef-de-rang", fr: "Chef de rang", ar: "شيف دي رون", en: "Chef de Rang", photos: true },
+    { id: "delivery-driver", fr: "Livreur", ar: "ليفرور", en: "Delivery Driver", photos: true },
+    { id: "cashier", fr: "Caissier", ar: "كيسيي", en: "Cashier" },
+    { id: "pizzaiolo", fr: "Pizzaïolo", ar: "بيتزايولو", en: "Pizzaiolo", photos: true },
+    { id: "barman", fr: "Barman / Barmaid", ar: "بارمان / بارميد", en: "Barman / Barmaid", photos: true },
+    { id: "barista", fr: "Barista", ar: "باريستا", en: "Barista", photos: true },
+    { id: "waiter", fr: "Serveur", ar: "سيرفور", en: "Waiter" },
+    { id: "restaurant-manager", fr: "Directeur de site / Responsable de restaurant", ar: "مسؤول الريسطو", en: "Restaurant Manager" },
+    { id: "storekeeper", fr: "Magasinier / Gestionnaire de stock", ar: "ماغازينيي", en: "Storekeeper / Stock Controller" },
+    { id: "valet", fr: "Voiturier", ar: "فواتوريي", en: "Valet Parker" },
   ],
   hotel: [
-    { id: "hotel-director", fr: "Directeur d'hôtel", ar: "مدير الأوطيل" },
-    { id: "guest-relations", fr: "Relations clients / Service client", ar: "خدمة الزبناء" },
-    { id: "front-office-manager", fr: "Chef de réception", ar: "شيف دي ريسبسيون" },
-    { id: "receptionist", fr: "Réceptionniste", ar: "ريسبسيونيست" },
-    { id: "bellman", fr: "Bagagiste / Portier", ar: "باݣاجيست" },
-    { id: "concierge", fr: "Concierge", ar: "كونسييرج" },
-    { id: "housekeeper", fr: "Femme / Valet de chambre", ar: "خدامة الشومبرات" },
-    { id: "linen-attendant", fr: "Lingère", ar: "لانجيرة" },
-    { id: "hotel-valet", fr: "Voiturier", ar: "فواتوريي" },
-    { id: "cleaning-agent", fr: "Agent de nettoyage", ar: "عامل النظافة" },
-    { id: "gardener", fr: "Jardinier", ar: "جاردينيي" },
-    { id: "security-guard", fr: "Agent de sécurité", ar: "عسّاس" },
+    { id: "hotel-director", fr: "Directeur d'hôtel", ar: "مدير الأوطيل", en: "Hotel Director" },
+    { id: "guest-relations", fr: "Relations clients / Service client", ar: "خدمة الزبناء", en: "Guest Relations" },
+    { id: "front-office-manager", fr: "Chef de réception", ar: "شيف دي ريسبسيون", en: "Front Office Manager" },
+    { id: "receptionist", fr: "Réceptionniste", ar: "ريسبسيونيست", en: "Receptionist" },
+    { id: "bellman", fr: "Bagagiste / Portier", ar: "باݣاجيست", en: "Bellman / Porter" },
+    { id: "concierge", fr: "Concierge", ar: "كونسييرج", en: "Concierge" },
+    { id: "housekeeper", fr: "Femme / Valet de chambre", ar: "خدامة الشومبرات", en: "Housekeeper" },
+    { id: "linen-attendant", fr: "Lingère", ar: "لانجيرة", en: "Linen Attendant" },
+    { id: "hotel-valet", fr: "Voiturier", ar: "فواتوريي", en: "Valet Parker" },
+    { id: "cleaning-agent", fr: "Agent de nettoyage", ar: "عامل النظافة", en: "Cleaning Attendant" },
+    { id: "gardener", fr: "Jardinier", ar: "جاردينيي", en: "Gardener" },
+    { id: "security-guard", fr: "Agent de sécurité", ar: "عسّاس", en: "Security Guard" },
   ],
   bakery: [
-    { id: "head-baker", fr: "Chef boulanger", ar: "شيف بولانجي", photos: true },
-    { id: "head-pastry-chef", fr: "Chef pâtissier", ar: "شيف باتيسيي", photos: true },
-    { id: "baker", fr: "Boulanger", ar: "خباز", photos: true },
-    { id: "pastry-chef", fr: "Pâtissier", ar: "باتيسيي", photos: true },
-    { id: "baker-assistant", fr: "Aide-boulanger", ar: "معاون الخباز", photos: true },
-    { id: "pastry-assistant", fr: "Aide-pâtissier", ar: "معاون الباتيسيي", photos: true },
-    { id: "baker-apprentice", fr: "Apprenti boulanger", ar: "متمرن خباز", photos: true },
-    { id: "pastry-apprentice", fr: "Apprenti pâtissier", ar: "متمرن باتيسيي", photos: true },
-    { id: "salesperson", fr: "Vendeur", ar: "بايع" },
-    { id: "viennoisier", fr: "Viennoisier", ar: "فيينوازيي", photos: true },
-    { id: "chocolatier", fr: "Chocolatier", ar: "شوكولاتيي", photos: true },
-    { id: "ice-cream-maker", fr: "Glacier", ar: "ݣلاسيي", photos: true },
-    { id: "production-manager", fr: "Responsable de production", ar: "مسؤول الإنتاج" },
-    { id: "boutique-manager", fr: "Responsable de boutique", ar: "مسؤول المحل" },
+    { id: "head-baker", fr: "Chef boulanger", ar: "شيف بولانجي", en: "Head Baker", photos: true },
+    { id: "head-pastry-chef", fr: "Chef pâtissier", ar: "شيف باتيسيي", en: "Head Pastry Chef", photos: true },
+    { id: "baker", fr: "Boulanger", ar: "خباز", en: "Baker", photos: true },
+    { id: "pastry-chef", fr: "Pâtissier", ar: "باتيسيي", en: "Pastry Chef", photos: true },
+    { id: "baker-assistant", fr: "Aide-boulanger", ar: "معاون الخباز", en: "Baker's Assistant", photos: true },
+    { id: "pastry-assistant", fr: "Aide-pâtissier", ar: "معاون الباتيسيي", en: "Pastry Assistant", photos: true },
+    { id: "baker-apprentice", fr: "Apprenti boulanger", ar: "متمرن خباز", en: "Baker Apprentice", photos: true },
+    { id: "pastry-apprentice", fr: "Apprenti pâtissier", ar: "متمرن باتيسيي", en: "Pastry Apprentice", photos: true },
+    { id: "salesperson", fr: "Vendeur", ar: "بايع", en: "Sales Assistant" },
+    { id: "viennoisier", fr: "Viennoisier", ar: "فيينوازيي", en: "Viennoiserie Baker", photos: true },
+    { id: "chocolatier", fr: "Chocolatier", ar: "شوكولاتيي", en: "Chocolatier", photos: true },
+    { id: "ice-cream-maker", fr: "Glacier", ar: "ݣلاسيي", en: "Ice Cream Maker", photos: true },
+    { id: "production-manager", fr: "Responsable de production", ar: "مسؤول الإنتاج", en: "Production Manager" },
+    { id: "boutique-manager", fr: "Responsable de boutique", ar: "مسؤول المحل", en: "Shop Manager" },
   ],
   asian: [
-    { id: "asian-chef", fr: "Chef de cuisine asiatique", ar: "شيف طبخ آسيوي", photos: true },
-    { id: "asian-sous-chef", fr: "Sous-chef de cuisine asiatique", ar: "سو شيف آسيوي", photos: true },
-    { id: "asian-chef-de-partie", fr: "Chef de partie cuisine asiatique", ar: "شيف دي بارتي آسيوي", photos: true },
-    { id: "asian-cook", fr: "Cuisinier asiatique", ar: "طباخ آسيوي", photos: true },
-    { id: "asian-kitchen-commis", fr: "Commis de cuisine asiatique", ar: "كومي آسيوي", photos: true },
-    { id: "sushi-chef", fr: "Chef sushi", ar: "شيف سوشي", photos: true },
-    { id: "sushiwoman", fr: "Sushiman / Sushiwoman", ar: "سوشيمان / سوشيومان", photos: true },
-    { id: "sushi-commis", fr: "Commis sushi", ar: "كومي سوشي", photos: true },
-    { id: "teppanyaki-chef", fr: "Chef teppanyaki", ar: "شيف تيبانياكي", photos: true },
-    { id: "teppanyaki-cook", fr: "Cuisinier teppanyaki", ar: "طباخ تيبانياكي", photos: true },
-    { id: "sushi-preparer", fr: "Préparateur sushi", ar: "محضّر السوشي", photos: true },
+    { id: "asian-chef", fr: "Chef de cuisine asiatique", ar: "شيف طبخ آسيوي", en: "Asian Head Chef", photos: true },
+    { id: "asian-sous-chef", fr: "Sous-chef de cuisine asiatique", ar: "سو شيف آسيوي", en: "Asian Sous Chef", photos: true },
+    { id: "asian-chef-de-partie", fr: "Chef de partie cuisine asiatique", ar: "شيف دي بارتي آسيوي", en: "Asian Chef de Partie", photos: true },
+    { id: "asian-cook", fr: "Cuisinier asiatique", ar: "طباخ آسيوي", en: "Asian Cook", photos: true },
+    { id: "asian-kitchen-commis", fr: "Commis de cuisine asiatique", ar: "كومي آسيوي", en: "Asian Kitchen Commis", photos: true },
+    { id: "sushi-chef", fr: "Chef sushi", ar: "شيف سوشي", en: "Sushi Chef", photos: true },
+    { id: "sushiwoman", fr: "Sushiman / Sushiwoman", ar: "سوشيمان / سوشيومان", en: "Sushiwoman", photos: true },
+    { id: "sushi-commis", fr: "Commis sushi", ar: "كومي سوشي", en: "Sushi Commis", photos: true },
+    { id: "teppanyaki-chef", fr: "Chef teppanyaki", ar: "شيف تيبانياكي", en: "Teppanyaki Chef", photos: true },
+    { id: "teppanyaki-cook", fr: "Cuisinier teppanyaki", ar: "طباخ تيبانياكي", en: "Teppanyaki Cook", photos: true },
+    { id: "sushi-preparer", fr: "Préparateur sushi", ar: "محضّر السوشي", en: "Sushi Preparer", photos: true },
   ],
 };
 
@@ -97,3 +97,19 @@ export const canUploadFoodPhotos = (sectorId, positionId) =>
 export const ALL_POSITIONS = Object.entries(POSITIONS).flatMap(([sectorId, list]) =>
   list.map((p) => ({ ...p, sectorId }))
 );
+
+/**
+ * Every position, grouped by its sector — for the places that must offer the
+ * whole taxonomy rather than one sector's slice, such as past roles in a work
+ * history, which need not sit in the sector the candidate works in today.
+ */
+export const POSITIONS_BY_SECTOR = SECTORS.map((sector) => ({
+  ...sector,
+  options: POSITIONS[sector.id] || [],
+}));
+
+/** Flat lookup, so a stored position id can be rendered in either language. */
+export const POSITION_BY_ID = ALL_POSITIONS.reduce((acc, p) => {
+  acc[p.id] = p;
+  return acc;
+}, {});

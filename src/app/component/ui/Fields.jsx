@@ -55,16 +55,32 @@ export function Textarea({ error, className = "", ...props }) {
  * @param {Array<{id:string, fr:string, ar:string}>} options
  * @param {string} placeholder shown as the empty first entry
  */
-export function Select({ options = [], placeholder, error, className = "", ...props }) {
+/**
+ * `options` is a flat list; `groups` is a list of `{ id, fr, ar, options }` for
+ * taxonomies long enough that a flat list is hard to scan. Pass one or the
+ * other.
+ */
+export function Select({ options = [], groups, placeholder, error, className = "", ...props }) {
   const { pick } = useLocale();
   return (
     <select {...props} className={`${baseField} ${error ? "border-red-400" : ""} ${className}`}>
       {placeholder !== undefined && <option value="">{placeholder}</option>}
-      {options.map((o) => (
-        <option key={o.id} value={o.id}>
-          {pick(o)}
-        </option>
-      ))}
+
+      {groups
+        ? groups.map((g) => (
+            <optgroup key={g.id} label={pick(g)}>
+              {g.options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {pick(o)}
+                </option>
+              ))}
+            </optgroup>
+          ))
+        : options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {pick(o)}
+            </option>
+          ))}
     </select>
   );
 }

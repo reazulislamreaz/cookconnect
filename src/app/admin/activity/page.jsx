@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { ShieldCheck, Eye, ImageIcon, Download } from "lucide-react";
 
-import { useT } from "@/i18n/LocaleProvider";
+import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { ACTIVITY_LOG } from "@/mock/admin";
 import { downloadCsv } from "@/lib/exportCsv";
 import { PageHeader, Table, Td, EmptyRow, Badge } from "@/app/component/admin/AdminUI";
@@ -27,6 +27,7 @@ const TYPE_TONE = { admin: "blue", "contact-access": "amber", photo: "gray" };
 
 export default function AdminActivityPage() {
   const t = useT();
+  const { pick } = useLocale();
   const [tab, setTab] = useState("all");
 
   const rows = useMemo(
@@ -107,9 +108,9 @@ export default function AdminActivityPage() {
               <Td>
                 <Badge tone={TYPE_TONE[l.type]}>{label(l.type)}</Badge>
               </Td>
-              <Td className="whitespace-nowrap font-medium text-gray-900">{l.actor}</Td>
+              <Td className="whitespace-nowrap font-medium text-gray-900">{pick(l, "actor")}</Td>
               <Td className="whitespace-nowrap text-gray-700">{l.target}</Td>
-              <Td className="text-gray-600">{l.detail}</Td>
+              <Td className="text-gray-600">{pick(l, "detail")}</Td>
             </tr>
           ))
         )}

@@ -30,7 +30,7 @@ const TONES = {
 
 export default function EmployerDashboard() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
 
   const [employer, setEmployer] = useState(null);
   const [jobs, setJobs] = useState(null);
@@ -179,7 +179,7 @@ export default function EmployerDashboard() {
                     <div className="min-w-0">
                       <p className="truncate font-medium text-gray-900">{c.name}</p>
                       <p className="truncate text-sm text-gray-500">
-                        {locale === "ar" ? c.titleAr : c.title} · {pick(city)}
+                        {pick(c, "title")} · {pick(city)}
                       </p>
                       {row.jobTitle && (
                         <p className="truncate text-xs text-gray-400">{row.jobTitle}</p>

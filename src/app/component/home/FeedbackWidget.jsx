@@ -5,6 +5,7 @@
 // frontend owns.
 
 import { forwardRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { ChefHat, MessageSquare, X, Check } from "lucide-react";
 
@@ -46,7 +47,11 @@ export default function FeedbackWidget() {
         <span className="hidden sm:inline">{t("feedback.button")}</span>
       </button>
 
-      {open && (
+      {/* Portalled to <body> for the same reason as the signup gate: an overlay
+          inserted and removed inline among page siblings is what triggers
+          "NotFoundError: Failed to execute 'removeChild' on 'Node'" once a
+          browser extension has touched that part of the tree. */}
+      {open && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 font-poppins"
           onClick={close}
@@ -170,7 +175,8 @@ export default function FeedbackWidget() {
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

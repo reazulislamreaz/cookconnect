@@ -44,8 +44,8 @@ export const MY_APPLICATIONS = [
 ];
 
 export const APPLICATION_STATUS = {
-  pending: { fr: "En attente", ar: "فالانتظار", tone: "amber" },
-  shortlisted: { fr: "Présélectionné", ar: "مختار", tone: "green" },
-  rejected: { fr: "Refusé", ar: "مرفوض", tone: "red" },
-  hired: { fr: "Recruté", ar: "تم التوظيف", tone: "green" },
+  pending: { fr: "En attente", ar: "فالانتظار", en: "Pending", tone: "amber" },
+  shortlisted: { fr: "Présélectionné", ar: "مختار", en: "Shortlisted", tone: "green" },
+  rejected: { fr: "Refusé", ar: "مرفوض", en: "Rejected", tone: "red" },
+  hired: { fr: "Recruté", ar: "تم التوظيف", en: "Hired", tone: "green" },
 };

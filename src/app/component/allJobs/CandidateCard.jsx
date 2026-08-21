@@ -21,7 +21,7 @@ import { toggleSaveProfile } from "@/mock/api";
 
 export default function CandidateCard({ candidate, initiallySaved = false }) {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
   const router = useRouter();
   const { requireAuth } = useSignupGate();
 
@@ -68,7 +68,7 @@ export default function CandidateCard({ candidate, initiallySaved = false }) {
             )}
           </p>
           <p className="truncate text-sm text-gray-600">
-            {locale === "ar" ? candidate.titleAr : candidate.title}
+            {pick(candidate, "title")}
           </p>
         </div>
       </div>
@@ -88,7 +88,7 @@ export default function CandidateCard({ candidate, initiallySaved = false }) {
         </span>
       )}
 
-      <p className="mt-3 line-clamp-2 text-sm text-gray-700">{candidate.about}</p>
+      <p className="mt-3 line-clamp-2 text-sm text-gray-700">{pick(candidate, "about")}</p>
 
       {/* Food photo strip, when the role is eligible */}
       {candidate.foodPhotos?.length > 0 && (

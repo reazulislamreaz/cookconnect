@@ -7,11 +7,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useT } from "@/i18n/LocaleProvider";
+import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { AD_ROTATE_MS } from "@/mock/banners";
 
 export default function AdCarousel({ slides = [], className = "" }) {
   const t = useT();
+  const { pick } = useLocale();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -43,14 +44,35 @@ export default function AdCarousel({ slides = [], className = "" }) {
               <Link
                 key={slide.id}
                 href={slide.href || "#"}
-                className={`relative flex w-full shrink-0 flex-col justify-center gap-2 bg-gradient-to-r ${slide.bg} p-6 text-white sm:p-10`}
-                style={{ minHeight: "clamp(140px, 22vw, 200px)" }}
+                className="relative flex w-full shrink-0 flex-col justify-center gap-2 overflow-hidden p-6 text-white sm:p-10"
+                style={{ minHeight: "clamp(160px, 22vw, 220px)" }}
               >
-                <h3 className="text-lg font-bold sm:text-2xl">{slide.title}</h3>
-                <p className="max-w-xl text-sm text-white/85 sm:text-base">{slide.subtitle}</p>
-                <span className="mt-2 w-fit rounded-md bg-white/95 px-4 py-2 text-xs font-semibold text-gray-900 sm:text-sm">
-                  {slide.cta}
-                </span>
+                {/* The photo is the banner; the gradient sits on top of it as a
+                    tint that is opaque behind the copy and fades to clear over
+                    the rest of the frame, so the photograph stays visible
+                    instead of being flattened under a colour wash. Previously
+                    `slide.image` was carried in the data but never rendered,
+                    which is why these strips showed a flat colour block. */}
+                {slide.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={slide.image.src}
+                    alt=""
+                    style={{ objectPosition: slide.image.focus }}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l ${slide.bg}`}
+                />
+
+                <div className="relative z-10 flex flex-col gap-2">
+                  <h3 className="text-lg font-bold sm:text-2xl">{pick(slide, "title")}</h3>
+                  <p className="max-w-xl text-sm text-white/90 sm:text-base">{pick(slide, "subtitle")}</p>
+                  <span className="mt-2 w-fit rounded-md bg-white/95 px-4 py-2 text-xs font-semibold text-gray-900 sm:text-sm">
+                    {pick(slide, "cta")}
+                  </span>
+                </div>
               </Link>
             ))}
           </div>

@@ -7,14 +7,16 @@
 //   3. advertising banner #1, middle of the page, auto-rotating
 //   4. step-by-step "how it works", replacing "What Makes Us Different"
 //   5. the three icons: chef, restaurant, document + green validation badge
-//   6. stats, with "People who successfully found a job"
-//   7. offer preview — guests see page one only, each card with its own Sign Up
-//   8. advertising banner #2, bottom of the page
+//   6. the partner strip — "they trust us", scrolling establishment logos
+//   7. stats, with "People who successfully found a job"
+//   8. offer preview — guests see page one only, each card with its own Sign Up
+//   9. advertising banner #2, bottom of the page
 
 import Banner from "@/app/component/home/Banner";
 import SplitHero from "@/app/component/home/SplitHero";
 import HowItWorks from "@/app/component/home/HowItWorks";
 import Highlights from "@/app/component/home/Highlights";
+import Partners from "@/app/component/home/Partners";
 import Stats from "@/app/component/home/Stats";
 import GuestOffers from "@/app/component/home/GuestOffers";
 import FeedbackWidget from "@/app/component/home/FeedbackWidget";
@@ -29,6 +31,7 @@ export default function HomePage() {
       <AdCarousel slides={HOME_BANNERS_MIDDLE} className="py-10" />
       <HowItWorks />
       <Highlights />
+      <Partners />
       <Stats />
       <GuestOffers />
       <AdCarousel slides={HOME_BANNERS_BOTTOM} className="py-10" />

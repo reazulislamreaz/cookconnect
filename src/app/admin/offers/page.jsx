@@ -33,7 +33,7 @@ const REPORTED_IDS = new Set(REPORTED_OFFERS.map((r) => r.jobId));
 
 export default function AdminOffersPage() {
   const t = useT();
-  const { pick, locale } = useLocale();
+  const { pick } = useLocale();
 
   const [tab, setTab] = useState("pending");
   const [q, setQ] = useState("");
@@ -140,7 +140,7 @@ export default function AdminOffersPage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={j.logo} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
                   <p className="min-w-0 truncate font-medium text-gray-900">
-                    {locale === "ar" ? j.titleAr : j.title}
+                    {pick(j, "title")}
                   </p>
                 </div>
               </Td>
