@@ -1,0 +1,43 @@
+# ---- dependencies ----
+node_modules/
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ---- build output ----
+.next/
+/out/
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- environment / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+
+# ---- vercel ----
+.vercel
+
+# ---- testing ----
+/coverage
+
+# ---- logs ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- os / editor ----
+.DS_Store
+Thumbs.db
+
+# ---- large design assets (kept locally, not versioned) ----
+Dashboard Screenshots/
+
+# ---- scratch ----
+temp_auto_push.bat
+temp_interactive_push.bat
+config.bat
+branch_structure.json
+CookConnect \[website\] Figma Design/
