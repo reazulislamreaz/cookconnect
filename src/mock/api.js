@@ -255,6 +255,28 @@ export async function fetchMyApplications() {
   return MY_APPLICATIONS.map((a) => ({ ...a, job: getJob(a.jobId) }));
 }
 
+/**
+ * Headline counters for the candidate dashboard.
+ *
+ * "Interested employers" is real data — the employers who bookmarked this
+ * candidate while browsing. Profile views have no fixture behind them, so the
+ * number is derived from the candidate's own index rather than invented at
+ * render time: Math.random() here would differ between the server and the
+ * client and break hydration, and would also change on every keystroke.
+ */
+export async function fetchMyStats() {
+  await delay(150);
+
+  const id = currentCandidateId();
+  const index = Math.max(0, CANDIDATES.findIndex((c) => c.id === id));
+
+  return {
+    views: 60 + index * 13,
+    applications: MY_APPLICATIONS.length,
+    savedByEmployers: SAVED_PROFILES.filter((s) => s.candidateId === id).length,
+  };
+}
+
 /* --------------------------------------------------------- notifications */
 
 export async function fetchNotifications() {
