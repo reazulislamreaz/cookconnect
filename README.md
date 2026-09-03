@@ -41,5 +41,9 @@ These remain on local disk only. Keep a separate backup of them.
 
 `Frontend/` was previously the standalone repository
 [`nkhedmou-frontend`](https://github.com/JAKUAN-AHMED/nkhedmou-frontend). Its
-full commit history was grafted into this monorepo under the `Frontend/` prefix,
-so `git log -- Frontend/` shows the complete record.
+full commit history was grafted into this monorepo, so every original commit
+remains reachable — browse it with `git log --graph` or `git log 8ce1417..e1aa26d`.
+
+Note that `git log -- Frontend/` will *not* list those commits: in them the files
+lived at the repository root rather than under `Frontend/`, so path filters miss
+them. This is normal for a grafted subtree.
