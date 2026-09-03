@@ -41,3 +41,6 @@ temp_interactive_push.bat
 config.bat
 branch_structure.json
 CookConnect \[website\] Figma Design/
+
+# retired nested repo (safe to delete once you are happy with the monorepo)
+Frontend/.git.retired-backup/
