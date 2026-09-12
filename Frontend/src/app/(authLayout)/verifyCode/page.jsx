@@ -9,6 +9,8 @@ import { ShieldCheck } from "lucide-react";
 
 import AuthShell from "@/app/component/auth/AuthShell";
 import { useT } from "@/i18n/LocaleProvider";
+import { useSession, ROLES } from "@/lib/session";
+import { USE_API } from "@/mock/api";
 
 const LENGTH = 6;
 const RESEND_SECONDS = 45;
@@ -17,10 +19,14 @@ function VerifyCodeForm() {
   const t = useT();
   const router = useRouter();
   const params = useSearchParams();
+  const { completeOtp, resendVerification, requestPasswordReset } = useSession();
 
-  const target = params.get("target") || "+212 6 •• •• •• ••";
+  const email = params.get("email") || params.get("target") || "";
+  const purpose = params.get("purpose") || (params.get("reason") === "locked" ? "reset-password" : "");
+  const target = email || "+212 6 •• •• •• ••";
   const [digits, setDigits] = useState(Array(LENGTH).fill(""));
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
+  const [submitting, setSubmitting] = useState(false);
   const inputs = useRef([]);
 
   useEffect(() => {
@@ -44,6 +50,45 @@ function VerifyCodeForm() {
   };
 
   const complete = digits.every(Boolean);
+  const code = digits.join("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!complete) return;
+
+    if (USE_API && purpose === "reset-password") {
+      router.push(`/setNewPass?email=${encodeURIComponent(email)}&code=${code}`);
+      return;
+    }
+
+    if (USE_API && purpose === "verify-email" && email) {
+      setSubmitting(true);
+      try {
+        const result = await completeOtp(email, code);
+        if (result?.role) {
+          router.push(result.role === ROLES.EMPLOYER ? "/resturentProfileForm" : "/editProfile");
+          return;
+        }
+        router.push("/signIn");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    router.push("/setNewPass");
+  };
+
+  const handleResend = async () => {
+    if (USE_API && email) {
+      if (purpose === "reset-password") {
+        await requestPasswordReset(email);
+      } else {
+        await resendVerification(email);
+      }
+    }
+    setSeconds(RESEND_SECONDS);
+  };
 
   return (
     <AuthShell title={t("auth.otpTitle")} subtitle={t("auth.otpSubtitle", { target })}>
@@ -53,12 +98,7 @@ function VerifyCodeForm() {
         </span>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (complete) router.push("/setNewPass");
-        }}
-      >
+      <form onSubmit={handleSubmit}>
         {/* dir="ltr" keeps the code boxes left-to-right even in the Darija RTL layout. */}
         <div dir="ltr" className="mb-6 flex justify-center gap-2">
           {digits.map((digit, i) => (
@@ -80,7 +120,7 @@ function VerifyCodeForm() {
 
         <button
           type="submit"
-          disabled={!complete}
+          disabled={!complete || submitting}
           className="w-full rounded-md bg-accent py-2.5 text-sm font-semibold text-white transition hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("auth.verify")}
@@ -92,7 +132,8 @@ function VerifyCodeForm() {
           <span className="text-gray-500">{t("auth.otpResendIn", { n: seconds })}</span>
         ) : (
           <button
-            onClick={() => setSeconds(RESEND_SECONDS)}
+            type="button"
+            onClick={handleResend}
             className="font-medium text-accent hover:underline"
           >
             {t("auth.otpResend")}

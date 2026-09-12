@@ -21,7 +21,7 @@ import {
   removeValue,
   ADMIN_SESSION_KEY,
 } from "@/lib/browserStore";
-import { authenticate } from "@/mock/adminApi";
+import { authenticate, clearAdminAuth } from "@/mock/adminApi";
 
 /** Header identity the Figma shows — avatar and unread count, not a record. */
 const HEADER_IDENTITY = {
@@ -63,7 +63,10 @@ export function AdminSessionProvider({ children }) {
     return admin;
   }, []);
 
-  const logout = useCallback(() => removeValue(STORAGE_KEY), []);
+  const logout = useCallback(async () => {
+    await clearAdminAuth();
+    removeValue(STORAGE_KEY);
+  }, []);
 
   const value = useMemo(
     () => ({

@@ -25,7 +25,16 @@ import {
 } from "@/mock/sectors";
 import { CITIES, COUNTRY } from "@/mock/cities";
 import { EXPERIENCE_LEVELS, AVAILABILITY, CONTRACT_TYPES } from "@/mock/jobOptions";
-import { fetchCurrentCandidate, saveCurrentCandidate } from "@/mock/api";
+import {
+  blobUrlToFile,
+  fetchCurrentCandidate,
+  saveCurrentCandidate,
+  uploadCandidateCv,
+  uploadCandidateDishPhotos,
+  uploadCandidatePhoto,
+  USE_API,
+} from "@/mock/api";
+import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 import { getProfileCompletion } from "@/lib/profileCompletion";
 import { CV_ACCEPT, CV_MAX_BYTES, validateFile } from "@/lib/validation";
 
@@ -40,6 +49,7 @@ const emptyHistory = { establishment: "", positionId: "", from: "", to: "" };
 export default function EditProfilePage() {
   const t = useT();
   const router = useRouter();
+  const taxonomyVersion = useTaxonomyVersion();
 
   const [profile, setProfile] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -66,7 +76,10 @@ export default function EditProfilePage() {
       return { ...p, [key]: value };
     });
 
-  const positions = useMemo(() => getPositions(profile?.sectorId), [profile?.sectorId]);
+  const positions = useMemo(
+    () => getPositions(profile?.sectorId),
+    [profile?.sectorId, taxonomyVersion]
+  );
   const foodPhotosAllowed = profile
     ? canUploadFoodPhotos(profile.sectorId, profile.positionId)
     : false;
@@ -105,14 +118,38 @@ export default function EditProfilePage() {
   // are still blocked — the gate becomes impossible to clear.
   const onSave = async () => {
     setSaving(true);
-    const next = await saveCurrentCandidate(profile);
-    setSaving(false);
+    try {
+      let working = profile;
 
-    // Adopt what was stored, so the completion figure on screen is the one the
-    // offer page will read rather than an optimistic local copy.
-    setProfile((p) => ({ ...p, ...next }));
-    setSaved(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+      if (USE_API) {
+        if (working.photo?.startsWith("blob:")) {
+          const file = await blobUrlToFile(working.photo, "photo.jpg");
+          const uploaded = await uploadCandidatePhoto(file);
+          working = { ...working, photo: uploaded.photo };
+        }
+
+        const blobFood = (working.foodPhotos || []).filter((url) => String(url).startsWith("blob:"));
+        if (blobFood.length) {
+          const files = await Promise.all(
+            blobFood.map((url, index) => blobUrlToFile(url, `dish-${index}.jpg`))
+          );
+          const uploaded = await uploadCandidateDishPhotos(files);
+          working = { ...working, foodPhotos: uploaded.foodPhotos || working.foodPhotos };
+        }
+
+        if (cvFile) {
+          await uploadCandidateCv(cvFile);
+          setCvFile(null);
+        }
+      }
+
+      const next = await saveCurrentCandidate(working);
+      setProfile((p) => ({ ...p, ...next, ...working }));
+      setSaved(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Keep the page header on screen while the profile loads, so the first paint

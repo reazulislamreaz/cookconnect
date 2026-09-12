@@ -16,7 +16,13 @@ import { Check, Search, Instagram, Linkedin, Globe, EyeOff, Eye } from "lucide-r
 import { useT } from "@/i18n/LocaleProvider";
 import { Field, Input, Select, Textarea } from "@/app/component/ui/Fields";
 import { AvatarUploader } from "@/app/component/ui/ImageUploader";
-import { fetchCurrentEmployer } from "@/mock/api";
+import {
+  blobUrlToFile,
+  fetchCurrentEmployer,
+  saveCurrentEmployer,
+  uploadEmployerLogo,
+  USE_API,
+} from "@/mock/api";
 import { CITIES, COUNTRY } from "@/mock/cities";
 import { ESTABLISHMENT_TYPES } from "@/mock/jobOptions";
 
@@ -34,6 +40,18 @@ export default function EditEmployerProfilePage() {
   const set = (key, value) => setProfile((p) => ({ ...p, [key]: value }));
   const setSocial = (key, value) =>
     setProfile((p) => ({ ...p, socials: { ...p.socials, [key]: value } }));
+
+  const handleSave = async () => {
+    let next = profile;
+    if (USE_API && profile.logo?.startsWith("blob:")) {
+      const file = await blobUrlToFile(profile.logo, "logo.jpg");
+      next = await uploadEmployerLogo(file);
+      next = { ...profile, ...next, logo: next.logo };
+    }
+    const savedProfile = await saveCurrentEmployer(next);
+    setProfile((p) => ({ ...p, ...savedProfile }));
+    setSaved(true);
+  };
 
   if (!profile) {
     return (
@@ -174,7 +192,7 @@ export default function EditEmployerProfilePage() {
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
         <button
-          onClick={() => setSaved(true)}
+          onClick={handleSave}
           className="rounded-md border border-gray-300 px-6 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
         >
           {t("common.save")}

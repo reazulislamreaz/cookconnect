@@ -6,7 +6,9 @@ import * as bannerService from './banner.service';
 export const listPublic = catchAsync(async (req: Request, res: Response) => {
   const data = await bannerService.listPublic(req.query);
   if (data.length > 0) {
-    await bannerService.recordImpressions(data.map((banner) => String(banner._id)));
+    await bannerService.recordImpressions(
+      data.map((banner) => String(banner.id || banner._id)),
+    );
   }
   sendResponse({ res, message: 'Banners retrieved', data });
 });

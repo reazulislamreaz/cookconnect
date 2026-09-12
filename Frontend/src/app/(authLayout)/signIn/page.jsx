@@ -24,11 +24,12 @@ import { Field, Input } from "@/app/component/ui/Fields";
 import { useT } from "@/i18n/LocaleProvider";
 import { useSession, ROLES, DEMO_INCOMPLETE_CANDIDATE } from "@/lib/session";
 import { isPasswordValid, MAX_LOGIN_ATTEMPTS } from "@/lib/validation";
+import { USE_API } from "@/mock/api";
 
 export default function SignInPage() {
   const t = useT();
   const router = useRouter();
-  const { login } = useSession();
+  const { login, loginWithCredentials } = useSession();
 
   const [role, setRole] = useState(ROLES.CANDIDATE);
   // Demo switch: sign in as a candidate whose profile is missing required
@@ -56,6 +57,25 @@ export default function SignInPage() {
 
   const onSubmit = async (data) => {
     if (locked) return;
+
+    if (USE_API) {
+      try {
+        const session = await loginWithCredentials(data.email, data.password);
+        router.push(session.role === ROLES.EMPLOYER ? "/resturentDashboard" : "/dashboard");
+      } catch (err) {
+        if (err.statusCode === 423) {
+          setLocked(true);
+          return;
+        }
+        if (err.statusCode === 401) {
+          const next = attempts + 1;
+          setAttempts(next);
+          if (next >= MAX_LOGIN_ATTEMPTS) setLocked(true);
+          return;
+        }
+      }
+      return;
+    }
 
     if (!isPasswordValid(data.password)) {
       const next = attempts + 1;
@@ -114,7 +134,7 @@ export default function SignInPage() {
         />
       </div>
 
-      {isCandidate && (
+      {isCandidate && !USE_API && (
         <label className="mb-5 flex items-start gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-700">
           <input
             type="checkbox"
@@ -175,7 +195,7 @@ export default function SignInPage() {
       <Divider label={t("auth.or")} />
       <GoogleButton
         label={t("auth.continueWithGoogle")}
-        onClick={signIn}
+        onClick={() => !USE_API && signIn()}
       />
     </AuthShell>
   );

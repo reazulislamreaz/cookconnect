@@ -98,7 +98,9 @@ export default function CandidateDatabasePage() {
       );
     }
 
-    downloadCsv(`base-cv-${data.rows.length}`, toCsv(data.rows, columns));
+    if (!process.env.NEXT_PUBLIC_API_URL) {
+      downloadCsv(`base-cv-${data.rows.length}`, toCsv(data.rows, columns));
+    }
     await logCandidateExport({
       rows: data.rows.length,
       filters,

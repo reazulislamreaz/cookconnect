@@ -94,22 +94,86 @@ export const getPosition = (sectorId, positionId) =>
 export const canUploadFoodPhotos = (sectorId, positionId) =>
   Boolean(getPosition(sectorId, positionId)?.photos);
 
-export const ALL_POSITIONS = Object.entries(POSITIONS).flatMap(([sectorId, list]) =>
-  list.map((p) => ({ ...p, sectorId }))
-);
+function buildAllPositions() {
+  return Object.entries(POSITIONS).flatMap(([sectorId, list]) =>
+    list.map((p) => ({ ...p, sectorId }))
+  );
+}
+
+function buildPositionsBySector() {
+  return SECTORS.map((sector) => ({
+    ...sector,
+    options: POSITIONS[sector.id] || [],
+  }));
+}
+
+function buildPositionById(all) {
+  return all.reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {});
+}
+
+export let ALL_POSITIONS = buildAllPositions();
 
 /**
  * Every position, grouped by its sector — for the places that must offer the
  * whole taxonomy rather than one sector's slice, such as past roles in a work
  * history, which need not sit in the sector the candidate works in today.
  */
-export const POSITIONS_BY_SECTOR = SECTORS.map((sector) => ({
-  ...sector,
-  options: POSITIONS[sector.id] || [],
-}));
+export let POSITIONS_BY_SECTOR = buildPositionsBySector();
 
 /** Flat lookup, so a stored position id can be rendered in either language. */
-export const POSITION_BY_ID = ALL_POSITIONS.reduce((acc, p) => {
-  acc[p.id] = p;
-  return acc;
-}, {});
+export let POSITION_BY_ID = buildPositionById(ALL_POSITIONS);
+
+export function recomputePositionExports() {
+  ALL_POSITIONS = buildAllPositions();
+  POSITIONS_BY_SECTOR = buildPositionsBySector();
+  POSITION_BY_ID = buildPositionById(ALL_POSITIONS);
+}
+
+/** Replace sector/position fixture data from API taxonomy items (in place). */
+export function hydrateSectorsFromApi(items) {
+  const sectors = items
+    .filter((item) => item.type === "sector")
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const positions = items
+    .filter((item) => item.type === "position")
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  if (sectors.length) {
+    SECTORS.splice(
+      0,
+      SECTORS.length,
+      ...sectors.map((s) => ({
+        id: s.key,
+        fr: s.label?.fr || "",
+        ar: s.label?.ar || "",
+        en: s.label?.en || "",
+      }))
+    );
+  }
+
+  if (positions.length) {
+    Object.keys(POSITIONS).forEach((key) => {
+      delete POSITIONS[key];
+    });
+
+    positions.forEach((p) => {
+      const parentKey = p.parentKey;
+      if (!parentKey) return;
+      if (!POSITIONS[parentKey]) POSITIONS[parentKey] = [];
+      POSITIONS[parentKey].push({
+        id: p.key,
+        fr: p.label?.fr || "",
+        ar: p.label?.ar || "",
+        en: p.label?.en || "",
+        photos: Boolean(p.meta?.allowsFoodPhotos),
+      });
+    });
+  }
+
+  if (sectors.length || positions.length) {
+    recomputePositionExports();
+  }
+}

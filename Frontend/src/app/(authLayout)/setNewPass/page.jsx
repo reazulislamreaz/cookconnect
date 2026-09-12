@@ -12,6 +12,7 @@ import AuthShell from "@/app/component/auth/AuthShell";
 import PasswordField from "@/app/component/auth/PasswordField";
 import { useT } from "@/i18n/LocaleProvider";
 import { isPasswordValid } from "@/lib/validation";
+import { USE_API, resetPassword } from "@/mock/api";
 
 export default function SetNewPassPage() {
   const t = useT();
@@ -48,7 +49,20 @@ export default function SetNewPassPage() {
 
   return (
     <AuthShell title={t("auth.resetTitle")} subtitle={t("auth.resetSubtitle")}>
-      <form onSubmit={handleSubmit(() => setDone(true))} className="space-y-4">
+      <form
+        onSubmit={handleSubmit(async (data) => {
+          if (USE_API) {
+            const params = new URLSearchParams(window.location.search);
+            await resetPassword({
+              email: params.get("email"),
+              code: params.get("code"),
+              password: data.password,
+            });
+          }
+          setDone(true);
+        })}
+        className="space-y-4"
+      >
         <PasswordField
           label={t("auth.password")}
           showRules

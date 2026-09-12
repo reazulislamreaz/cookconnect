@@ -16,8 +16,16 @@ function toObjectId(value: Types.ObjectId | string): Types.ObjectId {
   return typeof value === 'string' ? new Types.ObjectId(value) : value;
 }
 
-export async function listPublic(): Promise<IPartnerDocument[]> {
-  return Partner.find({ active: true }).sort({ order: 1, createdAt: -1 });
+export async function listPublic(): Promise<Array<Record<string, unknown>>> {
+  const partners = await Partner.find({ active: true }).sort({ order: 1, createdAt: -1 });
+  const { resolveMediaUrl } = await import('@/shared/enrichMedia');
+  return Promise.all(
+    partners.map(async (partner: IPartnerDocument) => {
+      const json = partner.toJSON() as unknown as Record<string, unknown>;
+      json.logoUrl = await resolveMediaUrl(partner.logoId);
+      return json;
+    }),
+  );
 }
 
 export async function adminList(query: AdminPartnerListQuery = {}): Promise<{

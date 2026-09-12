@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Bell } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
-import { fetchNotifications } from "@/mock/api";
+import { fetchNotifications, markNotificationRead } from "@/mock/api";
 import EmptyState from "@/app/component/ui/EmptyState";
 
 export default function NotificationDetailPage() {
@@ -16,7 +16,18 @@ export default function NotificationDetailPage() {
   const [item, setItem] = useState(undefined);
 
   useEffect(() => {
-    fetchNotifications().then((all) => setItem(all.find((n) => n.id === id) || null));
+    let alive = true;
+    fetchNotifications().then((all) => {
+      const found = all.find((n) => n.id === id) || null;
+      if (!alive) return;
+      setItem(found);
+      if (found && !found.read) {
+        markNotificationRead(found.id).catch(() => {});
+      }
+    });
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   if (item === undefined) {

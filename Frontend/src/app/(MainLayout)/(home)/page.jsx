@@ -12,6 +12,8 @@
 //   8. offer preview — guests see page one only, each card with its own Sign Up
 //   9. advertising banner #2, bottom of the page
 
+import { useEffect, useState } from "react";
+
 import Banner from "@/app/component/home/Banner";
 import SplitHero from "@/app/component/home/SplitHero";
 import HowItWorks from "@/app/component/home/HowItWorks";
@@ -22,19 +24,45 @@ import GuestOffers from "@/app/component/home/GuestOffers";
 import FeedbackWidget from "@/app/component/home/FeedbackWidget";
 import AdCarousel from "@/app/component/ui/AdCarousel";
 import { HOME_BANNERS_MIDDLE, HOME_BANNERS_BOTTOM } from "@/mock/banners";
+import { PARTNERS } from "@/mock/partners";
+import { fetchBanners, fetchPartners, USE_API } from "@/mock/api";
 
 export default function HomePage() {
+  const [middleBanners, setMiddleBanners] = useState(HOME_BANNERS_MIDDLE);
+  const [bottomBanners, setBottomBanners] = useState(HOME_BANNERS_BOTTOM);
+  const [partners, setPartners] = useState(PARTNERS);
+
+  useEffect(() => {
+    if (!USE_API) return undefined;
+    let alive = true;
+
+    Promise.all([
+      fetchBanners("home-middle"),
+      fetchBanners("home-bottom"),
+      fetchPartners(),
+    ]).then(([middle, bottom, partnerItems]) => {
+      if (!alive) return;
+      if (middle?.length) setMiddleBanners(middle);
+      if (bottom?.length) setBottomBanners(bottom);
+      if (partnerItems?.length) setPartners(partnerItems);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <>
       <Banner />
       <SplitHero />
-      <AdCarousel slides={HOME_BANNERS_MIDDLE} className="py-10" />
+      <AdCarousel slides={middleBanners} className="py-10" />
       <HowItWorks />
       <Highlights />
-      <Partners />
+      <Partners partners={partners} />
       <Stats />
       <GuestOffers />
-      <AdCarousel slides={HOME_BANNERS_BOTTOM} className="py-10" />
+      <AdCarousel slides={bottomBanners} className="py-10" />
       <FeedbackWidget />
     </>
   );

@@ -19,15 +19,15 @@ import { useLocale, useT } from "@/i18n/LocaleProvider";
 /** Seconds each partner spends crossing the strip. */
 const SECONDS_PER_PARTNER = 4;
 
-export default function Partners() {
+export default function Partners({ partners = PARTNERS }) {
   const t = useT();
 
   // Two copies back to back — see the -50% keyframe in tailwind.config.js.
   // Card spacing is a trailing margin on each card rather than `gap` on the
   // track, so every card occupies exactly the same width and half the track is
   // exactly one full copy.
-  const track = [...PARTNERS, ...PARTNERS];
-  const duration = `${PARTNERS.length * SECONDS_PER_PARTNER}s`;
+  const track = [...partners, ...partners];
+  const duration = `${partners.length * SECONDS_PER_PARTNER}s`;
 
   return (
     <section className="overflow-hidden bg-white px-4 py-14 font-poppins">
@@ -54,7 +54,7 @@ export default function Partners() {
               partner={partner}
               // The second copy exists only to make the loop seamless; it is the
               // same content read twice, so screen readers should skip it.
-              ariaHidden={i >= PARTNERS.length}
+              ariaHidden={i >= partners.length}
             />
           ))}
         </ul>

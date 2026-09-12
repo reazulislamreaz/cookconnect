@@ -31,6 +31,7 @@ import {
 } from "@/mock/jobOptions";
 import { MAX_OFFER_DAYS } from "@/mock/jobs";
 import { postJob } from "@/mock/api";
+import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 
 const today = new Date("2026-08-17T00:00:00Z");
 const maxDeadline = new Date(today.getTime() + MAX_OFFER_DAYS * 86400000)
@@ -53,6 +54,7 @@ const EMPTY = {
 export default function PostJobPage() {
   const t = useT();
   const router = useRouter();
+  const taxonomyVersion = useTaxonomyVersion();
 
   const [form, setForm] = useState(EMPTY);
   const [requirements, setRequirements] = useState([]);
@@ -60,7 +62,10 @@ export default function PostJobPage() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const positions = useMemo(() => getPositions(form.sectorId), [form.sectorId]);
+  const positions = useMemo(
+    () => getPositions(form.sectorId),
+    [form.sectorId, taxonomyVersion]
+  );
 
   const set = (key, value) =>
     setForm((f) =>

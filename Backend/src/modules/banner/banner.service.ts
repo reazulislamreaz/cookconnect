@@ -22,13 +22,24 @@ function isScheduleActive(banner: IBannerDocument, now = new Date()): boolean {
   return true;
 }
 
-export async function listPublic(query: PublicBannerQuery = {}): Promise<IBannerDocument[]> {
+export async function listPublic(
+  query: PublicBannerQuery = {},
+): Promise<Array<Record<string, unknown>>> {
   const now = new Date();
   const filter: FilterQuery<IBannerDocument> = { active: true };
   if (query.placement) filter.placement = query.placement;
 
   const banners = await Banner.find(filter).sort({ order: 1, createdAt: -1 });
-  return banners.filter((banner: any) => isScheduleActive(banner, now));
+  const active = banners.filter((banner: any) => isScheduleActive(banner, now));
+
+  const { resolveMediaUrl } = await import('@/shared/enrichMedia');
+  return Promise.all(
+    active.map(async (banner: IBannerDocument) => {
+      const json = banner.toJSON() as unknown as Record<string, unknown>;
+      json.imageUrl = await resolveMediaUrl(banner.imageId);
+      return json;
+    }),
+  );
 }
 
 export async function recordImpressions(ids: string[]): Promise<void> {

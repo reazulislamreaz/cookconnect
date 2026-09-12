@@ -178,3 +178,106 @@ const flatten = (groups) =>
 
 export const REQUIREMENT_BY_ID = flatten(JOB_REQUIREMENTS);
 export const BENEFIT_BY_ID = flatten(JOB_BENEFITS);
+
+function mergeLabelsIntoFlatList(list, apiItems) {
+  const byKey = new Map(apiItems.map((item) => [item.key, item]));
+  for (let i = 0; i < list.length; i += 1) {
+    const api = byKey.get(list[i].id);
+    if (!api) continue;
+    list[i] = {
+      ...list[i],
+      fr: api.label?.fr || list[i].fr,
+      ar: api.label?.ar || list[i].ar,
+      en: api.label?.en || list[i].en,
+    };
+    byKey.delete(list[i].id);
+  }
+  byKey.forEach((item) => {
+    list.push({
+      id: item.key,
+      fr: item.label?.fr || "",
+      ar: item.label?.ar || "",
+      en: item.label?.en || "",
+    });
+  });
+}
+
+function mergeLabelsIntoGroups(groups, apiItems, defaultGroupId) {
+  const byKey = new Map(apiItems.map((item) => [item.key, item]));
+
+  groups.forEach((group) => {
+    group.options.forEach((opt, index) => {
+      const api = byKey.get(opt.id);
+      if (!api) return;
+      group.options[index] = {
+        ...opt,
+        fr: api.label?.fr || opt.fr,
+        ar: api.label?.ar || opt.ar,
+        en: api.label?.en || opt.en,
+      };
+      byKey.delete(opt.id);
+    });
+  });
+
+  if (!byKey.size) return;
+
+  const appendGroup =
+    groups.find((g) => g.id === defaultGroupId) || groups[groups.length - 1];
+
+  byKey.forEach((item) => {
+    const targetGroup = item.group
+      ? groups.find((g) => g.id === item.group) || appendGroup
+      : appendGroup;
+    targetGroup.options.push({
+      id: item.key,
+      fr: item.label?.fr || "",
+      ar: item.label?.ar || "",
+      en: item.label?.en || "",
+    });
+  });
+}
+
+function rebuildJobOptionLookups() {
+  Object.keys(REQUIREMENT_BY_ID).forEach((key) => {
+    delete REQUIREMENT_BY_ID[key];
+  });
+  Object.assign(REQUIREMENT_BY_ID, flatten(JOB_REQUIREMENTS));
+
+  Object.keys(BENEFIT_BY_ID).forEach((key) => {
+    delete BENEFIT_BY_ID[key];
+  });
+  Object.assign(BENEFIT_BY_ID, flatten(JOB_BENEFITS));
+}
+
+/** Merge job option labels from API taxonomy items (in place). */
+export function hydrateJobOptionsFromApi(items) {
+  const byType = items.reduce((acc, item) => {
+    if (!acc[item.type]) acc[item.type] = [];
+    acc[item.type].push(item);
+    return acc;
+  }, {});
+
+  if (byType["contract-type"]?.length) {
+    mergeLabelsIntoFlatList(CONTRACT_TYPES, byType["contract-type"]);
+  }
+  if (byType["experience-level"]?.length) {
+    mergeLabelsIntoFlatList(EXPERIENCE_LEVELS, byType["experience-level"]);
+  }
+  if (byType["availability"]?.length) {
+    mergeLabelsIntoFlatList(AVAILABILITY, byType["availability"]);
+  }
+  if (byType["establishment-type"]?.length) {
+    mergeLabelsIntoFlatList(ESTABLISHMENT_TYPES, byType["establishment-type"]);
+  }
+  if (byType["requirement"]?.length) {
+    mergeLabelsIntoGroups(JOB_REQUIREMENTS, byType["requirement"], "skills");
+  }
+  if (byType["skill"]?.length) {
+    mergeLabelsIntoGroups(JOB_REQUIREMENTS, byType["skill"], "skills");
+  }
+  if (byType["benefit"]?.length) {
+    mergeLabelsIntoGroups(JOB_BENEFITS, byType["benefit"], "salary");
+  }
+
+  rebuildJobOptionLookups();
+}

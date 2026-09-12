@@ -129,8 +129,8 @@ export default function AdminShell({ children }) {
 
   const close = () => setOpen(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 

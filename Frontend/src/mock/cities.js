@@ -22,3 +22,23 @@ export const CITIES = [
 ];
 
 export const getCity = (id) => CITIES.find((c) => c.id === id) || null;
+
+/** Merge or replace city list from API taxonomy items (in place). */
+export function hydrateCitiesFromApi(items) {
+  const cities = items
+    .filter((item) => item.type === "city")
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  if (!cities.length) return;
+
+  const mapped = cities.map((c) => ({
+    id: c.key,
+    fr: c.label?.fr || "",
+    ar: c.label?.ar || "",
+    en: c.label?.en || "",
+  }));
+
+  const apiKeys = new Set(mapped.map((c) => c.id));
+  const kept = CITIES.filter((c) => !apiKeys.has(c.id));
+  CITIES.splice(0, CITIES.length, ...mapped, ...kept);
+}

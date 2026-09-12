@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { IoNotificationsOutline } from "react-icons/io5";
@@ -11,7 +11,7 @@ import logo from "../../../assets/CookconneKt 1.png";
 import { useT } from "@/i18n/LocaleProvider";
 import LanguageSwitch from "@/app/component/ui/LanguageSwitch";
 import { useSession } from "@/lib/session";
-import { unreadCount } from "@/mock/notifications";
+import { fetchUnreadNotificationCount } from "@/mock/api";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -21,6 +21,21 @@ export default function Navbar() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setUnreadCount(0);
+      return undefined;
+    }
+    let alive = true;
+    fetchUnreadNotificationCount().then((count) => {
+      if (alive) setUnreadCount(count);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isLoggedIn, pathname]);
 
   const dashboardLink = isEmployer ? "/resturentDashboard" : "/dashboard";
 
@@ -30,8 +45,8 @@ export default function Navbar() {
     ...(isEmployer ? [{ label: t("nav.postOffer"), href: "/jobPost" }] : []),
   ];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setUserOpen(false);
     setMenuOpen(false);
     router.push("/");

@@ -35,7 +35,7 @@ export function AvatarUploader({ value, onChange, label, hint, round = true }) {
       return;
     }
     setError("");
-    onChange(result.url);
+    onChange(result.url, file);
   };
 
   return (
@@ -113,16 +113,21 @@ export function PhotoGridUploader({ value = [], onChange, max = 8, hint }) {
 
     const room = max - value.length;
     const accepted = [];
+    const addedFiles = [];
     let rejected = false;
 
     for (const file of files.slice(0, room)) {
       const result = await checkImageQuality(file);
-      if (result.ok) accepted.push(result.url);
-      else rejected = true;
+      if (result.ok) {
+        accepted.push(result.url);
+        addedFiles.push(file);
+      } else {
+        rejected = true;
+      }
     }
 
     setError(rejected ? t("profile.photoQualityError") : "");
-    if (accepted.length) onChange([...value, ...accepted]);
+    if (accepted.length) onChange([...value, ...accepted], addedFiles);
   };
 
   const remove = (index) => onChange(value.filter((_, i) => i !== index));

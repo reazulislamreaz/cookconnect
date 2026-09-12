@@ -9,6 +9,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { AD_ROTATE_MS } from "@/mock/banners";
+import { clickBanner, USE_API } from "@/mock/api";
+
+const isApiBannerId = (id) => /^[a-f\d]{24}$/i.test(String(id || ""));
 
 export default function AdCarousel({ slides = [], className = "" }) {
   const t = useT();
@@ -44,6 +47,11 @@ export default function AdCarousel({ slides = [], className = "" }) {
               <Link
                 key={slide.id}
                 href={slide.href || "#"}
+                onClick={() => {
+                  if (USE_API && isApiBannerId(slide.id)) {
+                    clickBanner(slide.id).catch(() => {});
+                  }
+                }}
                 className="relative flex w-full shrink-0 flex-col justify-center gap-2 overflow-hidden p-6 text-white sm:p-10"
                 style={{ minHeight: "clamp(160px, 22vw, 220px)" }}
               >

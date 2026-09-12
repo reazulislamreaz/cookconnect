@@ -11,7 +11,8 @@ import { Search, SlidersHorizontal, RotateCcw, Zap } from "lucide-react";
 
 import { useT } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
-import { searchCandidates } from "@/mock/api";
+import { fetchSavedProfileIds, searchCandidates, USE_API } from "@/mock/api";
+import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 import { SECTORS, getPositions } from "@/mock/sectors";
 import { CITIES, COUNTRY } from "@/mock/cities";
 import { EXPERIENCE_LEVELS, AVAILABILITY } from "@/mock/jobOptions";
@@ -30,21 +31,37 @@ const INITIAL = {
   availability: "all",
 };
 
-const SAVED_IDS = new Set(SAVED_PROFILES.map((s) => s.candidateId));
+const FIXTURE_SAVED_IDS = new Set(SAVED_PROFILES.map((s) => s.candidateId));
 
 export default function FindProfilesPage() {
   const t = useT();
   const { isLoggedIn } = useSession();
+  const taxonomyVersion = useTaxonomyVersion();
 
   const [filters, setFilters] = useState(INITIAL);
   const [page, setPage] = useState(1);
   const [searchAll, setSearchAll] = useState(false);
   const [response, setResponse] = useState({ key: null, data: null });
   const [showFilters, setShowFilters] = useState(false);
+  const [savedIds, setSavedIds] = useState(USE_API ? new Set() : FIXTURE_SAVED_IDS);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setSavedIds(USE_API ? new Set() : FIXTURE_SAVED_IDS);
+      return undefined;
+    }
+    let alive = true;
+    fetchSavedProfileIds().then((ids) => {
+      if (alive) setSavedIds(ids);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isLoggedIn]);
 
   const positions = useMemo(
     () => (filters.sectorId === "all" ? [] : getPositions(filters.sectorId)),
-    [filters.sectorId]
+    [filters.sectorId, taxonomyVersion]
   );
 
   // Same request-key pattern as the offers page: state is written only from the
@@ -198,7 +215,7 @@ export default function FindProfilesPage() {
               <CandidateCard
                 key={candidate.id}
                 candidate={candidate}
-                initiallySaved={SAVED_IDS.has(candidate.id)}
+                initiallySaved={savedIds.has(candidate.id)}
               />
             ))}
           </div>

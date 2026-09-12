@@ -9,7 +9,7 @@
 // Change Requirements 03: a guest clicking the card gets the signup gate.
 // Change Requirements 13: the phone number is never rendered here.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, Briefcase, BadgeCheck, Bookmark, Clock } from "lucide-react";
 
@@ -26,6 +26,10 @@ export default function CandidateCard({ candidate, initiallySaved = false }) {
   const { requireAuth } = useSignupGate();
 
   const [saved, setSaved] = useState(initiallySaved);
+
+  useEffect(() => {
+    setSaved(initiallySaved);
+  }, [initiallySaved]);
 
   const city = getCity(candidate.city);
   const experience = EXPERIENCE_LEVELS.find((e) => e.id === candidate.experience);

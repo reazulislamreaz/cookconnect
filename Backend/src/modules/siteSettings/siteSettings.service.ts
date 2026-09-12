@@ -21,8 +21,12 @@ async function ensureDocument(): Promise<ISiteSettingsDocument> {
   return doc;
 }
 
-export async function getPublic(): Promise<ISiteSettingsDocument> {
-  return ensureDocument();
+export async function getPublic(): Promise<Record<string, unknown>> {
+  const doc = await ensureDocument();
+  const json = doc.toJSON() as unknown as Record<string, unknown>;
+  const { resolveMediaUrl } = await import('@/shared/enrichMedia');
+  json.imageUrl = await resolveMediaUrl(doc.imageId);
+  return json;
 }
 
 export async function getAdmin(): Promise<ISiteSettingsDocument> {

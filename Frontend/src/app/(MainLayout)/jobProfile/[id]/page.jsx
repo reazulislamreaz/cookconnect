@@ -8,7 +8,7 @@
 //
 // Change Requirements 10: the Save/bookmark control is available here too.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,7 +19,8 @@ import {
 import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
 import { useSignupGate } from "@/app/component/ui/SignupGate";
-import { fetchCandidate, toggleSaveProfile } from "@/mock/api";
+import { fetchCandidate, fetchSavedProfileIds, toggleSaveProfile, USE_API } from "@/mock/api";
+import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 import { getCity } from "@/mock/cities";
 import { EXPERIENCE_LEVELS, AVAILABILITY, REQUIREMENT_BY_ID } from "@/mock/jobOptions";
 import { POSITION_BY_ID } from "@/mock/sectors";
@@ -29,23 +30,38 @@ import EmptyState from "@/app/component/ui/EmptyState";
 export default function CandidateDetailPage() {
   const t = useT();
   const { pick } = useLocale();
+  const taxonomyVersion = useTaxonomyVersion();
   const { id } = useParams();
   const { isEmployer } = useSession();
   const { requireAuth } = useSignupGate();
 
   const [candidate, setCandidate] = useState(undefined);
   const [revealed, setRevealed] = useState(false);
+  const [initiallySaved, setInitiallySaved] = useState(
+    USE_API ? false : SAVED_PROFILES.some((s) => s.candidateId === id)
+  );
 
   // Whether the profile is already bookmarked is derived from the data, not
   // copied into state by an effect; `savedOverride` only records a change the
   // user makes on this page.
   const [savedOverride, setSavedOverride] = useState(null);
-  const saved = savedOverride ?? SAVED_PROFILES.some((s) => s.candidateId === id);
+  const saved = savedOverride ?? initiallySaved;
 
   useEffect(() => {
     let alive = true;
     fetchCandidate(id, { asEmployer: isEmployer }).then((data) => {
       if (alive) setCandidate(data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, isEmployer]);
+
+  useEffect(() => {
+    if (!isEmployer) return undefined;
+    let alive = true;
+    fetchSavedProfileIds().then((ids) => {
+      if (alive) setInitiallySaved(ids.has(String(id)));
     });
     return () => {
       alive = false;
@@ -59,6 +75,7 @@ export default function CandidateDetailPage() {
   });
 
   const reveal = requireAuth(() => setRevealed(true));
+  const positionById = useMemo(() => POSITION_BY_ID, [taxonomyVersion]);
 
   if (candidate === undefined) {
     return (
@@ -203,7 +220,7 @@ export default function CandidateDetailPage() {
               <TimelineRow
                 key={i}
                 icon={Building2}
-                title={pick(POSITION_BY_ID[row.positionId])}
+                title={pick(positionById[row.positionId])}
                 subtitle={row.establishment}
                 period={`${row.from} – ${row.to}`}
               />

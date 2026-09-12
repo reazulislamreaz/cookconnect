@@ -8,11 +8,13 @@
 // Change Requirements 03 replaced it with the split-screen hero directly below,
 // and 03 also forbids duplicate call-to-action buttons.
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { useT } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
 import { PHOTOS } from "@/mock/photos";
+import { fetchSiteSettings, USE_API } from "@/mock/api";
 
 /**
  * Admin-managed later; null keeps the plain tinted background.
@@ -37,6 +39,21 @@ const BANNER_HEIGHT = "clamp(420px, 50vw, 620px)";
 export default function Banner() {
   const t = useT();
   const { isLoggedIn } = useSession();
+  const [backgroundImage, setBackgroundImage] = useState(BACKGROUND_IMAGE);
+
+  useEffect(() => {
+    if (!USE_API) return undefined;
+    let alive = true;
+    fetchSiteSettings().then((settings) => {
+      if (!alive) return;
+      if (settings?.mode === "image" && settings.imageUrl) {
+        setBackgroundImage({ src: settings.imageUrl, focus: "center" });
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Contained to the same max-w-7xl column as the hero slider and the ad
   // banners below, so every banner on the page lines up at the same width.
@@ -46,13 +63,13 @@ export default function Banner() {
         style={{ minHeight: BANNER_HEIGHT }}
         className="relative mx-auto flex max-w-7xl items-center justify-center overflow-hidden rounded-2xl bg-brand-tint px-4 py-16 sm:py-24"
       >
-        {BACKGROUND_IMAGE && (
+        {backgroundImage && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={BACKGROUND_IMAGE.src}
+              src={backgroundImage.src}
               alt=""
-              style={{ objectPosition: BACKGROUND_IMAGE.focus }}
+              style={{ objectPosition: backgroundImage.focus }}
               className="absolute inset-0 h-full w-full object-cover"
             />
             {/* A dark scrim rather than the old `bg-white/85` wash: the white

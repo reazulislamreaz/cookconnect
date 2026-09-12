@@ -59,7 +59,13 @@ import {
 import { CITIES } from "./cities";
 import { ALL_POSITIONS, SECTORS } from "./sectors";
 import { AVAILABILITY, EXPERIENCE_LEVELS, REQUIREMENT_BY_ID } from "./jobOptions";
-import { getJSON, getString, setValue, ADMIN_SESSION_KEY } from "@/lib/browserStore";
+import {
+  getJSON,
+  getString,
+  setValue,
+  removeValue,
+  ADMIN_SESSION_KEY,
+} from "@/lib/browserStore";
 
 /** Network-ish pause, so loading states are visible and honest. */
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
@@ -312,6 +318,19 @@ function mapChefDetail(raw) {
     email: raw.user?.email || raw.email,
     phone: raw.phone,
   };
+}
+
+function triggerCsvDownload(filename, csv) {
+  if (typeof document === "undefined") return;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -960,7 +979,41 @@ export async function fetchCandidateDatabase({
  * contact columns were part of it (Improvement points 20).
  */
 export async function logCandidateExport({ rows = 0, filters = {}, withContact = false } = {}) {
-  if (USE_API) return { ok: true, rows };
+  if (USE_API) {
+    const token =
+      getJSON(ADMIN_META_KEY, null)?.accessToken ||
+      getString(ADMIN_TOKEN_KEY, "") ||
+      getJSON(ADMIN_SESSION_KEY, null)?.accessToken;
+
+    const qs = adminQs({
+      q: filters.q,
+      position: filters.position,
+      sector: filters.sector,
+      city: filters.city,
+      experience: filters.experience,
+      availability: filters.availability,
+      verified: filters.verified,
+      minCompletion: filters.minCompletion,
+      withContact: withContact ? "true" : undefined,
+    });
+
+    const res = await fetch(`${API}/admin/candidates/export${qs}`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "Export failed");
+    }
+
+    let csv = await res.text();
+    if (!csv.startsWith("\uFEFF")) csv = `\uFEFF${csv}`;
+
+    const lineCount = Math.max(0, csv.split(/\r?\n/).filter(Boolean).length - 1);
+    const count = rows || lineCount;
+    triggerCsvDownload(`base-cv-${count}`, csv);
+    return { ok: true, rows: count };
+  }
 
   await delay(100);
 
@@ -1188,7 +1241,9 @@ const EDITABLE_CANDIDATE_FIELDS = [
 export async function updateCandidate(id, changes) {
   if (USE_API) {
     const patch = Object.fromEntries(
-      Object.entries(changes).filter(([key]) => EDITABLE_CANDIDATE_FIELDS.includes(key))
+      Object.entries(changes).filter(
+        ([key]) => EDITABLE_CANDIDATE_FIELDS.includes(key) && key !== "email"
+      )
     );
     if (patch.about && typeof patch.about === "string") {
       patch.about = { fr: patch.about, ar: patch.about, en: patch.about };
@@ -2324,7 +2379,12 @@ export async function authenticate(email, password = "Admin123!") {
   };
 }
 
-/** The accounts the sign-in screen offers. Demo scaffolding, and only that. */
+/**
+ * The accounts the sign-in screen offers. Demo scaffolding, and only that.
+ *
+ * In API mode we keep the three seed emails hardcoded: GET /admin/admins requires
+ * auth, but the login page needs account hints before anyone is signed in.
+ */
 export async function fetchDemoAccounts() {
   if (USE_API) {
     return [
@@ -2389,6 +2449,15 @@ export async function setAdminPermissions(adminId, permissions) {
       method: "PATCH",
       body: JSON.stringify({ permissions }),
     });
+
+    const session = getJSON(ADMIN_SESSION_KEY, null);
+    if (session?.admin?.id === adminId) {
+      const meta = getJSON(ADMIN_META_KEY, null);
+      if (meta) {
+        setValue(ADMIN_META_KEY, { ...meta, permissions });
+      }
+    }
+
     return { ok: true, adminId, permissions };
   }
 
@@ -2442,4 +2511,30 @@ export async function setAdminDisabled(adminId, disabled) {
   logAction(disabled ? "admin.disabled" : "admin.enabled", { target: target.email });
 
   return { ok: true, adminId, disabled };
+}
+
+/** Clears stored auth tokens and optionally notifies the backend. */
+export async function clearAdminAuth() {
+  const token =
+    getJSON(ADMIN_META_KEY, null)?.accessToken ||
+    getString(ADMIN_TOKEN_KEY, "") ||
+    getJSON(ADMIN_SESSION_KEY, null)?.accessToken;
+
+  if (USE_API && token) {
+    try {
+      await fetch(`${API}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+    } catch {
+      // Logout is best-effort; local tokens are cleared regardless.
+    }
+  }
+
+  removeValue(ADMIN_TOKEN_KEY);
+  removeValue(ADMIN_META_KEY);
 }

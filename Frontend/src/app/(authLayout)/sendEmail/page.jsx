@@ -11,17 +11,27 @@ import { Mail, MessageCircle } from "lucide-react";
 import AuthShell, { Divider } from "@/app/component/auth/AuthShell";
 import { Field, Input } from "@/app/component/ui/Fields";
 import { useT } from "@/i18n/LocaleProvider";
+import { useSession } from "@/lib/session";
+import { USE_API } from "@/mock/api";
 
 export default function SendEmailPage() {
   const t = useT();
   const router = useRouter();
+  const { requestPasswordReset } = useSession();
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm();
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
+    if (USE_API) {
+      await requestPasswordReset(data.email);
+      router.push(
+        `/verifyCode?email=${encodeURIComponent(data.email)}&purpose=reset-password`
+      );
+      return;
+    }
     router.push(`/verifyCode?target=${encodeURIComponent(data.email)}`);
   };
 

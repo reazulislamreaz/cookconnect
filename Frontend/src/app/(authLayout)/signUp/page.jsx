@@ -23,12 +23,13 @@ import { Field, Input } from "@/app/component/ui/Fields";
 import { useT } from "@/i18n/LocaleProvider";
 import { useSession, ROLES } from "@/lib/session";
 import { isPasswordValid } from "@/lib/validation";
+import { USE_API } from "@/mock/api";
 
 function SignUpForm() {
   const t = useT();
   const router = useRouter();
   const params = useSearchParams();
-  const { login } = useSession();
+  const { login, registerAndStart } = useSession();
 
   const [role, setRole] = useState(
     params.get("role") === "employer" ? ROLES.EMPLOYER : ROLES.CANDIDATE
@@ -46,13 +47,28 @@ function SignUpForm() {
   // optimisation.
   const password = useWatch({ control, name: "password", defaultValue: "" });
 
-  const onSubmit = async () => {
+  const onSubmit = async (data) => {
+    if (USE_API) {
+      const apiRole = role === ROLES.EMPLOYER ? "employer" : "candidate";
+      await registerAndStart({
+        email: data.email,
+        password: data.password,
+        role,
+        firstName: data.firstName,
+        lastName: data.lastName,
+      });
+      router.push(
+        `/verifyCode?email=${encodeURIComponent(data.email)}&purpose=verify-email&role=${apiRole}`
+      );
+      return;
+    }
+
     login(role);
-    // Straight to profile completion — never to a landing page in between.
     router.push(role === ROLES.EMPLOYER ? "/resturentProfileForm" : "/editProfile");
   };
 
   const finishWithGoogle = () => {
+    if (USE_API) return;
     login(role);
     router.push(role === ROLES.EMPLOYER ? "/resturentProfileForm" : "/editProfile");
   };

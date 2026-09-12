@@ -10,7 +10,9 @@ import { APPLICATIONS, SAVED_PROFILES, MY_APPLICATIONS } from "./applications";
 import { NOTIFICATIONS } from "./notifications";
 import { getJSON, setValue, SESSION_KEY } from "@/lib/browserStore";
 import { getProfileCompletion } from "@/lib/profileCompletion";
-import { ALL_POSITIONS } from "./sectors";
+import { ALL_POSITIONS, SECTORS, POSITIONS } from "./sectors";
+import { HOME_BANNERS_MIDDLE, HOME_BANNERS_BOTTOM, STICKY_BANNER } from "./banners";
+import { PARTNERS } from "./partners";
 
 /** Change Requirements 07: "Display 12 profiles per page". */
 export const PAGE_SIZE = 12;
@@ -18,7 +20,7 @@ export const PAGE_SIZE = 12;
 /** Guests only ever see the first page of results (Change Requirements 03). */
 export const GUEST_MAX_PAGES = 1;
 
-const USE_API = Boolean(process.env.NEXT_PUBLIC_API_URL);
+export const USE_API = Boolean(process.env.NEXT_PUBLIC_API_URL);
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api/v1";
 
 const delay = (ms = 220) => new Promise((r) => setTimeout(r, ms));
@@ -30,6 +32,20 @@ const PLACEHOLDER_PHOTO = "https://i.ibb.co/HD6WMnhg/Rectangle-119.png";
 
 /* ----------------------------------------------------------- API helpers */
 
+function apiError(json, res) {
+  const err = new Error(json.message || "Request failed");
+  err.statusCode = json.statusCode || res.status;
+  return err;
+}
+
+async function parseJsonResponse(res) {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.success === false) {
+    throw apiError(json, res);
+  }
+  return json;
+}
+
 async function api(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
@@ -40,10 +56,7 @@ async function api(path, options = {}) {
     },
     ...options,
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.success === false) {
-    throw new Error(json.message || "Request failed");
-  }
+  const json = await parseJsonResponse(res);
   return json.data;
 }
 
@@ -57,12 +70,36 @@ async function apiWithMeta(path, options = {}) {
     },
     ...options,
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.success === false) {
-    throw new Error(json.message || "Request failed");
-  }
+  const json = await parseJsonResponse(res);
   return { data: json.data, meta: json.meta };
 }
+
+async function apiForm(path, formData, options = {}) {
+  const res = await fetch(`${API}${path}`, {
+    credentials: "include",
+    method: options.method || "POST",
+    headers: {
+      ...authHeaders(),
+      ...(options.headers || {}),
+    },
+    body: formData,
+    ...options,
+  });
+  const json = await parseJsonResponse(res);
+  return json.data;
+}
+
+function mediaBaseUrl() {
+  return API.replace(/\/api\/v1\/?$/, "");
+}
+
+export function resolveMediaUrl(url) {
+  if (!url) return null;
+  if (typeof url === "object" && url.src) return url.src;
+  if (String(url).startsWith("http") || String(url).startsWith("blob:")) return String(url);
+  return `${mediaBaseUrl()}${String(url).startsWith("/") ? url : `/${url}`}`;
+}
+
 
 function authHeaders() {
   const token = getJSON(SESSION_KEY, null)?.accessToken;
@@ -355,9 +392,32 @@ export async function fetchCurrentCandidate() {
 
 export async function saveCurrentCandidate(patch) {
   if (USE_API) {
+    const body = {
+      firstName: patch.firstName,
+      lastName: patch.lastName,
+      sectorId: patch.sectorId,
+      positionId: patch.positionId,
+      city: patch.city,
+      country: patch.country,
+      experience: patch.experience,
+      availability: patch.availability,
+      contractType: patch.contractType,
+      expectedSalary: patch.expectedSalary,
+      phone: patch.phone,
+      skills: patch.skills,
+      languages: patch.languages,
+      training: patch.training,
+      history: patch.history,
+    };
+    if (patch.about != null) {
+      body.about =
+        typeof patch.about === "string"
+          ? { fr: patch.about, ar: patch.about, en: patch.about }
+          : patch.about;
+    }
     const raw = await api("/candidates/me", {
       method: "PATCH",
-      body: JSON.stringify(patch),
+      body: JSON.stringify(body),
     });
     return mapCandidate(raw);
   }
@@ -631,4 +691,435 @@ export async function submitFeedback(payload) {
 
   await delay(400);
   return { ok: true, payload };
+}
+
+/* --------------------------------------------------------------- auth */
+
+export async function loginUser({ email, password }) {
+  if (USE_API) {
+    const data = await api("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    return { accessToken: data.accessToken, user: data.user };
+  }
+
+  await delay(300);
+  const err = new Error("Invalid email or password");
+  err.statusCode = 401;
+  throw err;
+}
+
+export async function registerUser({ email, password, role, firstName, lastName, locale, phone }) {
+  if (USE_API) {
+    const body = { email, password, role, locale, phone };
+    await api("/auth/register", { method: "POST", body: JSON.stringify(body) });
+    return { ok: true, email, role, firstName, lastName };
+  }
+
+  await delay(400);
+  return { ok: true, email, role, firstName, lastName };
+}
+
+export async function verifyOtp({ email, code }) {
+  if (USE_API) {
+    await api("/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    });
+    return { ok: true };
+  }
+
+  await delay(300);
+  return { ok: true };
+}
+
+export async function resendOtp({ email }) {
+  if (USE_API) {
+    await api("/auth/resend-otp", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+    return { ok: true };
+  }
+
+  await delay(300);
+  return { ok: true };
+}
+
+export async function refreshSession() {
+  if (USE_API) {
+    const data = await api("/auth/refresh", { method: "POST" });
+    const stored = getJSON(SESSION_KEY, null) || {};
+    setValue(SESSION_KEY, { ...stored, accessToken: data.accessToken });
+    return { accessToken: data.accessToken };
+  }
+
+  await delay(150);
+  return { accessToken: "mock-refreshed" };
+}
+
+export async function logoutUser() {
+  if (USE_API) {
+    await api("/auth/logout", { method: "POST" });
+    return { ok: true };
+  }
+
+  await delay(120);
+  return { ok: true };
+}
+
+export async function forgotPassword({ email }) {
+  if (USE_API) {
+    await api("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+    return { ok: true };
+  }
+
+  await delay(300);
+  return { ok: true };
+}
+
+export async function resetPassword({ email, code, password }) {
+  if (USE_API) {
+    await api("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, code, password }),
+    });
+    return { ok: true };
+  }
+
+  await delay(300);
+  return { ok: true };
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  if (USE_API) {
+    await api("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    return { ok: true };
+  }
+
+  await delay(300);
+  return { ok: true };
+}
+
+export async function fetchMe() {
+  if (USE_API) {
+    return api("/auth/me");
+  }
+
+  await delay(120);
+  const session = getJSON(SESSION_KEY, null);
+  if (!session?.user) return null;
+  return {
+    user: { id: session.user.id, email: session.user.email, role: session.user.role },
+    profile: null,
+    completeness: null,
+  };
+}
+
+/* --------------------------------------------------------- employer patch */
+
+export async function saveCurrentEmployer(patch) {
+  if (USE_API) {
+    const body = {
+      name: patch.name,
+      type: patch.type,
+      city: patch.city,
+      address: patch.address,
+      phone: patch.phone,
+      phonePublic: patch.phonePublic,
+      socials: patch.socials,
+      since: patch.since,
+      staffCount: patch.staffCount,
+    };
+    if (patch.about != null) {
+      body.about =
+        typeof patch.about === "string"
+          ? { fr: patch.about, ar: patch.about, en: patch.about }
+          : patch.about;
+    }
+    const raw = await api("/employers/me", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return {
+      ...raw,
+      id: raw.id,
+      logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
+      cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
+      about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
+    };
+  }
+
+  await delay(180);
+  return fetchCurrentEmployer();
+}
+
+/* -------------------------------------------------------- file uploads */
+
+export async function uploadCandidatePhoto(file) {
+  if (USE_API) {
+    const form = new FormData();
+    form.append("photo", file);
+    const raw = await apiForm("/candidates/me/photo", form);
+    return mapCandidate(raw);
+  }
+
+  await delay(400);
+  return fetchCurrentCandidate();
+}
+
+export async function uploadCandidateDishPhotos(files) {
+  if (USE_API) {
+    const form = new FormData();
+    files.forEach((file) => form.append("photos", file));
+    const raw = await apiForm("/candidates/me/dish-photos", form);
+    return mapCandidate(raw);
+  }
+
+  await delay(400);
+  return fetchCurrentCandidate();
+}
+
+export async function uploadCandidateCv(file) {
+  if (USE_API) {
+    const form = new FormData();
+    form.append("cv", file);
+    const raw = await apiForm("/candidates/me/cv", form);
+    return mapCandidate(raw);
+  }
+
+  await delay(400);
+  return fetchCurrentCandidate();
+}
+
+export async function uploadEmployerLogo(file) {
+  if (USE_API) {
+    const form = new FormData();
+    form.append("logo", file);
+    const raw = await apiForm("/employers/me/logo", form);
+    return {
+      ...raw,
+      logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
+    };
+  }
+
+  await delay(400);
+  return fetchCurrentEmployer();
+}
+
+export async function uploadEmployerCover(file) {
+  if (USE_API) {
+    const form = new FormData();
+    form.append("cover", file);
+    const raw = await apiForm("/employers/me/cover", form);
+    return {
+      ...raw,
+      cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
+    };
+  }
+
+  await delay(400);
+  return fetchCurrentEmployer();
+}
+
+/* --------------------------------------------------- applications / notifications */
+
+export async function updateApplicationStatus(id, status, note) {
+  if (USE_API) {
+    const body = note ? { status, note } : { status };
+    const data = await api(`/applications/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return data;
+  }
+
+  await delay(250);
+  return { ok: true, id, status };
+}
+
+export async function markNotificationRead(id) {
+  if (USE_API) {
+    return api(`/notifications/${id}/read`, { method: "PATCH" });
+  }
+
+  await delay(120);
+  return { ok: true, id };
+}
+
+export async function markAllNotificationsRead() {
+  if (USE_API) {
+    return api("/notifications/read-all", { method: "PATCH" });
+  }
+
+  await delay(120);
+  return { ok: true };
+}
+
+export async function fetchUnreadNotificationCount() {
+  if (USE_API) {
+    const { data, meta } = await apiWithMeta("/notifications?read=false&limit=1");
+    if (typeof meta?.total === "number") return meta.total;
+    return (data || []).filter((n) => !n.read).length;
+  }
+
+  await delay(80);
+  return NOTIFICATIONS.filter((n) => !n.read).length;
+}
+
+/* --------------------------------------------------------- public content */
+
+function mapPublicBanner(raw) {
+  const imageSrc =
+    typeof raw.image === "object" && raw.image?.src
+      ? raw.image.src
+      : resolveMediaUrl(raw.imageUrl || raw.image) || PLACEHOLDER_LOGO;
+  return {
+    id: raw.id,
+    title: pickLocalized(raw.title, "fr"),
+    titleAr: pickLocalized(raw.title, "ar"),
+    titleEn: pickLocalized(raw.title, "en"),
+    subtitle: pickLocalized(raw.subtitle, "fr"),
+    subtitleAr: pickLocalized(raw.subtitle, "ar"),
+    subtitleEn: pickLocalized(raw.subtitle, "en"),
+    cta: pickLocalized(raw.cta, "fr"),
+    ctaAr: pickLocalized(raw.cta, "ar"),
+    ctaEn: pickLocalized(raw.cta, "en"),
+    href: raw.href || "#",
+    image: { src: imageSrc, focus: raw.image?.focus || "center" },
+    bg: raw.theme || "from-slate-900 via-slate-800/85 to-transparent",
+  };
+}
+
+export async function fetchBanners(placement) {
+  if (USE_API) {
+    const data = await api(`/banners${qs({ placement })}`);
+    return (data || []).map(mapPublicBanner);
+  }
+
+  await delay(120);
+  if (placement === "home-middle") return HOME_BANNERS_MIDDLE;
+  if (placement === "home-bottom") return HOME_BANNERS_BOTTOM;
+  if (placement === "sticky") return [STICKY_BANNER];
+  return [...HOME_BANNERS_MIDDLE, ...HOME_BANNERS_BOTTOM, STICKY_BANNER];
+}
+
+export async function clickBanner(id) {
+  if (USE_API) {
+    await api(`/banners/${id}/click`, { method: "POST" });
+    return { ok: true };
+  }
+
+  await delay(80);
+  return { ok: true };
+}
+
+export async function fetchPartners() {
+  if (USE_API) {
+    const rows = await api("/partners");
+    return (rows || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      href: p.href || "#",
+      logo: resolveMediaUrl(p.logoUrl || p.logo) || null,
+      kind: p.kind || "",
+      kindAr: p.kindAr || "",
+      kindEn: p.kindEn || "",
+      city: p.city || "",
+      cityAr: p.cityAr || "",
+      cityEn: p.cityEn || "",
+      color: p.color || "#679046",
+      mark: p.mark || "",
+    }));
+  }
+
+  await delay(120);
+  return PARTNERS;
+}
+
+export async function fetchSiteSettings() {
+  if (USE_API) {
+    const settings = await api("/site-settings");
+    return {
+      ...settings,
+      imageUrl: resolveMediaUrl(settings?.imageUrl) || settings?.imageUrl || null,
+    };
+  }
+
+  await delay(80);
+  return {};
+}
+
+export async function fetchTaxonomies() {
+  if (USE_API) {
+    return api("/taxonomies");
+  }
+
+  await delay(120);
+  return { sectors: SECTORS, positions: POSITIONS };
+}
+
+/* -------------------------------------------------------------- bookmarks */
+
+export async function fetchBookmarkJobIds() {
+  if (USE_API) {
+    const data = await api("/bookmarks/jobs");
+    return new Set(
+      (data || []).map((b) => String(b.targetId || b.target?.id || b.id))
+    );
+  }
+
+  await delay(120);
+  return new Set();
+}
+
+export async function toggleSaveJob(jobId, currentlySaved) {
+  if (USE_API) {
+    if (currentlySaved) {
+      await api(`/bookmarks/jobs${qs({ targetId: jobId })}`, { method: "DELETE" });
+    } else {
+      await api("/bookmarks/jobs", {
+        method: "POST",
+        body: JSON.stringify({ targetId: jobId }),
+      });
+    }
+    return { ok: true, jobId, saved: !currentlySaved };
+  }
+
+  await delay(250);
+  return { ok: true, jobId, saved: !currentlySaved };
+}
+
+
+/* ----------------------------------------------------------- media helpers */
+
+export async function fetchSavedProfileIds() {
+  if (USE_API) {
+    try {
+      const rows = await api("/bookmarks/profiles");
+      return new Set(
+        (rows || []).map((s) => String(s.targetId || s.target?.id || s.target || "")).filter(Boolean)
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
+  await delay(80);
+  return new Set(SAVED_PROFILES.map((s) => s.candidateId));
+}
+
+export async function blobUrlToFile(url, filename = "upload.jpg") {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const ext = blob.type?.split("/")[1] || "jpg";
+  const name = filename.includes(".") ? filename : `${filename}.${ext}`;
+  return new File([blob], name, { type: blob.type || "image/jpeg" });
 }

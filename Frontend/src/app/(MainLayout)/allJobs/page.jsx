@@ -17,6 +17,7 @@ import { Search, SlidersHorizontal, RotateCcw, Zap } from "lucide-react";
 import { useT } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
 import { searchJobs } from "@/mock/api";
+import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 import { SECTORS, getPositions } from "@/mock/sectors";
 import { CITIES, COUNTRY } from "@/mock/cities";
 import { CONTRACT_TYPES, ESTABLISHMENT_TYPES, EXPERIENCE_LEVELS } from "@/mock/jobOptions";
@@ -38,6 +39,7 @@ const INITIAL = {
 export default function AllJobsPage() {
   const t = useT();
   const { isLoggedIn } = useSession();
+  const taxonomyVersion = useTaxonomyVersion();
 
   const [filters, setFilters] = useState(INITIAL);
   const [page, setPage] = useState(1);
@@ -47,7 +49,7 @@ export default function AllJobsPage() {
 
   const positions = useMemo(
     () => (filters.sectorId === "all" ? [] : getPositions(filters.sectorId)),
-    [filters.sectorId]
+    [filters.sectorId, taxonomyVersion]
   );
 
   // The query is identified by a key. State is only written from the async
