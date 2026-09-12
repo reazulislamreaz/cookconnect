@@ -16,7 +16,7 @@ import { Search, SlidersHorizontal, RotateCcw, Zap } from "lucide-react";
 
 import { useT } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
-import { searchJobs } from "@/mock/api";
+import { searchJobs, fetchBookmarkJobIds } from "@/mock/api";
 import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 import { SECTORS, getPositions } from "@/mock/sectors";
 import { CITIES, COUNTRY } from "@/mock/cities";
@@ -38,7 +38,7 @@ const INITIAL = {
 
 export default function AllJobsPage() {
   const t = useT();
-  const { isLoggedIn } = useSession();
+  const { isLoggedIn, isCandidate } = useSession();
   const taxonomyVersion = useTaxonomyVersion();
 
   const [filters, setFilters] = useState(INITIAL);
@@ -46,6 +46,7 @@ export default function AllJobsPage() {
   const [searchAll, setSearchAll] = useState(false);
   const [response, setResponse] = useState({ key: null, data: null });
   const [showFilters, setShowFilters] = useState(false);
+  const [savedIds, setSavedIds] = useState(() => new Set());
 
   const positions = useMemo(
     () => (filters.sectorId === "all" ? [] : getPositions(filters.sectorId)),
@@ -68,6 +69,20 @@ export default function AllJobsPage() {
       alive = false;
     };
   }, [queryKey]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isCandidate) {
+      setSavedIds(new Set());
+      return undefined;
+    }
+    let alive = true;
+    fetchBookmarkJobIds().then((ids) => {
+      if (alive) setSavedIds(ids);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isLoggedIn, isCandidate]);
 
   // While a new query is in flight the previous response is ignored, which is
   // what drives the skeleton.
@@ -221,7 +236,7 @@ export default function AllJobsPage() {
         <>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {result.items.map((job) => (
-              <JobCard key={job.id} job={job} />
+              <JobCard key={job.id} job={job} initiallySaved={savedIds.has(job.id)} />
             ))}
           </div>
 

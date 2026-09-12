@@ -14,9 +14,10 @@
 // where a candidate gets "Apply now". The card body stays clickable for them,
 // since reading a competitor's offer is allowed.
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Briefcase, CalendarDays, Clock, BadgeCheck } from "lucide-react";
+import { MapPin, Briefcase, CalendarDays, Clock, BadgeCheck, Bookmark } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { useSignupGate } from "@/app/component/ui/SignupGate";
@@ -24,8 +25,9 @@ import { useSession } from "@/lib/session";
 import { getCity } from "@/mock/cities";
 import { REQUIREMENT_BY_ID, EXPERIENCE_LEVELS, CONTRACT_TYPES } from "@/mock/jobOptions";
 import { daysLeft } from "@/mock/jobs";
+import { toggleSaveJob } from "@/mock/api";
 
-export default function JobCard({ job }) {
+export default function JobCard({ job, initiallySaved = false }) {
   const t = useT();
   const { pick } = useLocale();
   const router = useRouter();
@@ -38,7 +40,27 @@ export default function JobCard({ job }) {
   const remaining = daysLeft(job);
   const isNew = remaining > 50;
 
+  const [saved, setSaved] = useState(initiallySaved);
+
+  useEffect(() => {
+    setSaved(initiallySaved);
+  }, [initiallySaved]);
+
   const open = requireAuth(() => router.push(href));
+
+  const save = requireAuth(async (event) => {
+    event?.stopPropagation?.();
+    if (isEmployer) return;
+    const next = !saved;
+    setSaved(next);
+    try {
+      await toggleSaveJob(job.id, !next);
+    } catch {
+      setSaved(!next);
+    }
+  });
+
+  const showBookmark = !isEmployer;
 
   return (
     <div
@@ -46,9 +68,26 @@ export default function JobCard({ job }) {
       className="group relative flex cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-5 font-poppins shadow-sm transition hover:border-brand/40 hover:shadow-md"
     >
       {isNew && (
-        <span className="absolute end-4 top-4 rounded bg-brand px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span
+          className={`absolute end-4 rounded bg-brand px-2 py-0.5 text-[11px] font-semibold text-white ${
+            showBookmark ? "top-12" : "top-4"
+          }`}
+        >
           {t("notifications.new")}
         </span>
+      )}
+
+      {showBookmark && (
+        <button
+          onClick={save}
+          aria-label={t("jobs.saveJob")}
+          title={saved ? t("jobs.jobSaved") : t("jobs.saveJob")}
+          className={`absolute end-4 top-4 z-10 rounded-md p-1.5 transition ${
+            saved ? "bg-brand-soft text-brand" : "text-gray-300 hover:bg-gray-50 hover:text-brand"
+          }`}
+        >
+          <Bookmark size={17} fill={saved ? "currentColor" : "none"} />
+        </button>
       )}
 
       {/* Header */}

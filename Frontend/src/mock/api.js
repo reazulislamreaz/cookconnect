@@ -449,8 +449,8 @@ export async function fetchCurrentEmployer() {
       return {
         ...raw,
         id: raw.id,
-        logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
-        cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
+        logo: resolveMediaUrl(raw.logoUrl || raw.logo) || PLACEHOLDER_LOGO,
+        cover: resolveMediaUrl(raw.coverUrl || raw.cover) || PLACEHOLDER_LOGO,
         about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
       };
     } catch {
@@ -851,8 +851,8 @@ export async function saveCurrentEmployer(patch) {
     return {
       ...raw,
       id: raw.id,
-      logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
-      cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
+      logo: resolveMediaUrl(raw.logoUrl || raw.logo) || PLACEHOLDER_LOGO,
+      cover: resolveMediaUrl(raw.coverUrl || raw.cover) || PLACEHOLDER_LOGO,
       about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
     };
   }
@@ -906,7 +906,8 @@ export async function uploadEmployerLogo(file) {
     const raw = await apiForm("/employers/me/logo", form);
     return {
       ...raw,
-      logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
+      logo: resolveMediaUrl(raw.logoUrl || raw.logo) || PLACEHOLDER_LOGO,
+      cover: resolveMediaUrl(raw.coverUrl || raw.cover) || PLACEHOLDER_LOGO,
     };
   }
 
@@ -921,7 +922,8 @@ export async function uploadEmployerCover(file) {
     const raw = await apiForm("/employers/me/cover", form);
     return {
       ...raw,
-      cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
+      logo: resolveMediaUrl(raw.logoUrl || raw.logo) || PLACEHOLDER_LOGO,
+      cover: resolveMediaUrl(raw.coverUrl || raw.cover) || PLACEHOLDER_LOGO,
     };
   }
 

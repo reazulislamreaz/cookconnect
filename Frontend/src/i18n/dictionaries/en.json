@@ -152,6 +152,10 @@
   "ruleNumber": "a number",
   "ruleSpecial": "a special character",
   "passwordMismatch": "Passwords do not match",
+  "changePassword": "Change password",
+  "currentPassword": "Current password",
+  "passwordChanged": "Password updated",
+  "passwordChangeError": "Could not update the password. Check your current password and try again.",
   "strengthWeak": "Weak",
   "strengthMedium": "Medium",
   "strengthStrong": "Strong",
@@ -238,7 +242,9 @@
   "appliedBody": "Your application has been passed on to the employer.",
   "signUpToApply": "Sign up to apply",
   "employerViewOnly": "Employer view",
-  "employerViewOnlyBody": "You are viewing this offer as an employer. Applications are reserved for candidate accounts."
+  "employerViewOnlyBody": "You are viewing this offer as an employer. Applications are reserved for candidate accounts.",
+  "saveJob": "Save this offer",
+  "jobSaved": "Offer saved"
  },
  "candidates": {
   "title": "Find profiles",
@@ -257,6 +263,9 @@
   "editProfile": "Edit profile",
   "establishmentPhoto": "Establishment photo / logo",
   "establishmentPhotoHint": "A logo or photo makes your establishment more credible.",
+  "coverPhoto": "Cover photo",
+  "coverPhotoHint": "Shown at the top of your public establishment profile.",
+  "statusUpdateError": "Could not update the application status. Please try again.",
   "phonePublic": "Show my number to candidates",
   "phonePublicHint": "When off, your number stays hidden and candidates contact you through the platform.",
   "socialLinks": "Social media",
@@ -330,6 +339,8 @@
   "title": "Notifications",
   "empty": "No notifications",
   "markRead": "Mark as read",
+  "markAllRead": "Mark all as read",
+  "markAllError": "Could not mark notifications as read. Please try again.",
   "new": "New"
  },
  "feedback": {

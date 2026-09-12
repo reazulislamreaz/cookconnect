@@ -37,6 +37,7 @@ import {
 import { useTaxonomyVersion } from "@/components/TaxonomyHydrator";
 import { getProfileCompletion } from "@/lib/profileCompletion";
 import { CV_ACCEPT, CV_MAX_BYTES, validateFile } from "@/lib/validation";
+import ChangePasswordSection from "@/app/component/auth/ChangePasswordSection";
 
 const emptyTraining = { school: "", diploma: "", from: "", to: "" };
 // A past role is stored as a position id, never as typed text: Change
@@ -428,6 +429,10 @@ export default function EditProfilePage() {
             </p>
           )}
         </Section>
+      </div>
+
+      <div className="mt-6">
+        <ChangePasswordSection />
       </div>
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">

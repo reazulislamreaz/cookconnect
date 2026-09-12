@@ -7,6 +7,7 @@ import { ArrowLeft, Bell } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { fetchNotifications, markNotificationRead } from "@/mock/api";
+import { notifyNotificationsChanged } from "@/lib/notificationsSignal";
 import EmptyState from "@/app/component/ui/EmptyState";
 
 export default function NotificationDetailPage() {
@@ -22,7 +23,14 @@ export default function NotificationDetailPage() {
       if (!alive) return;
       setItem(found);
       if (found && !found.read) {
-        markNotificationRead(found.id).catch(() => {});
+        markNotificationRead(found.id)
+          .then(() => {
+            if (alive) {
+              setItem((prev) => (prev ? { ...prev, read: true } : prev));
+              notifyNotificationsChanged();
+            }
+          })
+          .catch(() => {});
       }
     });
     return () => {

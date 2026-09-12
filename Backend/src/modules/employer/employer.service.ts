@@ -61,14 +61,18 @@ export async function createStub(userId: string): Promise<IEmployerProfileDocume
   return EmployerProfile.create({ userId: toObjectId(userId) });
 }
 
-export async function getMe(userId: string): Promise<IEmployerProfileDocument> {
-  return requireByUserId(userId);
+export async function getMe(userId: string): Promise<Record<string, unknown>> {
+  const profile = await requireByUserId(userId);
+  const json = profile.toJSON() as unknown as Record<string, unknown>;
+  json.logoUrl = await resolveMediaUrl(profile.logoId);
+  json.coverUrl = await resolveMediaUrl(profile.coverId);
+  return json;
 }
 
 export async function updateMe(
   userId: string,
   input: UpdateEmployerInput,
-): Promise<IEmployerProfileDocument> {
+): Promise<Record<string, unknown>> {
   const profile = await requireByUserId(userId);
 
   if (input.name !== undefined) profile.name = input.name;
@@ -82,7 +86,11 @@ export async function updateMe(
   if (input.since !== undefined) profile.since = input.since;
   if (input.staffCount !== undefined) profile.staffCount = input.staffCount;
 
-  return profile.save();
+  await profile.save();
+  const json = profile.toJSON() as unknown as Record<string, unknown>;
+  json.logoUrl = await resolveMediaUrl(profile.logoId);
+  json.coverUrl = await resolveMediaUrl(profile.coverId);
+  return json;
 }
 
 export async function getPublic(id: string): Promise<Record<string, unknown> | null> {
@@ -192,15 +200,23 @@ async function uploadBrandImage(
 export async function uploadLogo(
   userId: string,
   file: UploadedFile,
-): Promise<IEmployerProfileDocument> {
-  return uploadBrandImage(userId, file, 'logo');
+): Promise<Record<string, unknown>> {
+  const profile = await uploadBrandImage(userId, file, 'logo');
+  const json = profile.toJSON() as unknown as Record<string, unknown>;
+  json.logoUrl = await resolveMediaUrl(profile.logoId);
+  json.coverUrl = await resolveMediaUrl(profile.coverId);
+  return json;
 }
 
 export async function uploadCover(
   userId: string,
   file: UploadedFile,
-): Promise<IEmployerProfileDocument> {
-  return uploadBrandImage(userId, file, 'cover');
+): Promise<Record<string, unknown>> {
+  const profile = await uploadBrandImage(userId, file, 'cover');
+  const json = profile.toJSON() as unknown as Record<string, unknown>;
+  json.logoUrl = await resolveMediaUrl(profile.logoId);
+  json.coverUrl = await resolveMediaUrl(profile.coverId);
+  return json;
 }
 
 async function enrichEmployerAdmin(

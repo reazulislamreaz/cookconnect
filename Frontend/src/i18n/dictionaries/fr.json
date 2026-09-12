@@ -152,6 +152,10 @@
   "ruleNumber": "un chiffre",
   "ruleSpecial": "un caractère spécial",
   "passwordMismatch": "Les mots de passe ne correspondent pas",
+  "changePassword": "Changer le mot de passe",
+  "currentPassword": "Mot de passe actuel",
+  "passwordChanged": "Mot de passe mis à jour",
+  "passwordChangeError": "Impossible de mettre à jour le mot de passe. Vérifiez votre mot de passe actuel et réessayez.",
   "strengthWeak": "Faible",
   "strengthMedium": "Moyen",
   "strengthStrong": "Fort",
@@ -238,7 +242,9 @@
   "appliedBody": "Votre candidature a bien été transmise à l'employeur.",
   "signUpToApply": "S'inscrire pour postuler",
   "employerViewOnly": "Consultation employeur",
-  "employerViewOnlyBody": "Vous consultez cette offre en tant qu'employeur. La candidature est réservée aux comptes candidats."
+  "employerViewOnlyBody": "Vous consultez cette offre en tant qu'employeur. La candidature est réservée aux comptes candidats.",
+  "saveJob": "Enregistrer cette offre",
+  "jobSaved": "Offre enregistrée"
  },
  "candidates": {
   "title": "Trouver des profils",
@@ -257,6 +263,9 @@
   "editProfile": "Modifier le profil",
   "establishmentPhoto": "Photo / logo de l'établissement",
   "establishmentPhotoHint": "Un logo ou une photo renforce la crédibilité de votre établissement.",
+  "coverPhoto": "Photo de couverture",
+  "coverPhotoHint": "Affichée en haut de votre profil public d'établissement.",
+  "statusUpdateError": "Impossible de mettre à jour le statut de la candidature. Réessayez.",
   "phonePublic": "Afficher mon numéro aux candidats",
   "phonePublicHint": "Désactivé, votre numéro reste masqué. Les candidats vous contactent via la plateforme.",
   "socialLinks": "Réseaux sociaux",
@@ -330,6 +339,8 @@
   "title": "Notifications",
   "empty": "Aucune notification",
   "markRead": "Marquer comme lu",
+  "markAllRead": "Tout marquer comme lu",
+  "markAllError": "Impossible de marquer les notifications comme lues. Réessayez.",
   "new": "Nouveau"
  },
  "feedback": {

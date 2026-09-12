@@ -152,6 +152,10 @@
   "ruleNumber": "رقم",
   "ruleSpecial": "رمز خاص",
   "passwordMismatch": "الكلمات السرية ماشي بحال بحال",
+  "changePassword": "بدّل الكلمة السرية",
+  "currentPassword": "الكلمة السرية الحالية",
+  "passwordChanged": "الكلمة السرية تبدّلات",
+  "passwordChangeError": "ماقدّرناش نبدّلو الكلمة السرية. تأكّد من الكلمة الحالية وعاود.",
   "strengthWeak": "ضعيفة",
   "strengthMedium": "متوسطة",
   "strengthStrong": "قوية",
@@ -238,7 +242,9 @@
   "appliedBody": "الترشيح ديالك وصل للمشغّل.",
   "signUpToApply": "سجّل باش تقدر ترشّح",
   "employerViewOnly": "عرض للمشغّل",
-  "employerViewOnlyBody": "كتشوف هاد العرض بحال مشغّل. الترشيح خاص غير بحسابات المرشحين."
+  "employerViewOnlyBody": "كتشوف هاد العرض بحال مشغّل. الترشيح خاص غير بحسابات المرشحين.",
+  "saveJob": "حفظ هاد العرض",
+  "jobSaved": "العرض تحفظ"
  },
  "candidates": {
   "title": "قلّب على بروفيلات",
@@ -257,6 +263,9 @@
   "editProfile": "بدّل البروفيل",
   "establishmentPhoto": "تصويرة / لوݣو المؤسسة",
   "establishmentPhotoHint": "اللوݣو ولا التصويرة كيزيدو فالمصداقية ديال المؤسسة ديالك.",
+  "coverPhoto": "تصويرة الغلاف",
+  "coverPhotoHint": "كتبان فوق البروفيل العمومي ديال المؤسسة ديالك.",
+  "statusUpdateError": "ماقدّرناش نبدّلو حالة الترشيح. عاود من جديد.",
   "phonePublic": "بيّن الرقم ديالي للمترشحين",
   "phonePublicHint": "إلا طفّيتيه، الرقم ديالك يبقى مخبّي. المترشحين كيتواصلو معاك عبر المنصة.",
   "socialLinks": "الشبكات الاجتماعية",
@@ -330,6 +339,8 @@
   "title": "الإشعارات",
   "empty": "ماكاين حتى إشعار",
   "markRead": "علّم كمقروء",
+  "markAllRead": "علّم الكل كمقروء",
+  "markAllError": "ماقدّرناش نعلّمو الإشعارات كمقروءة. عاود من جديد.",
   "new": "جديد"
  },
  "feedback": {

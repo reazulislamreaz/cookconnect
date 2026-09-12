@@ -17,9 +17,10 @@ import {
 } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
-import { fetchEmployerJobs, fetchEmployerCandidates, fetchCurrentEmployer } from "@/mock/api";
+import { fetchEmployerJobs, fetchEmployerCandidates, fetchCurrentEmployer, updateApplicationStatus } from "@/mock/api";
 import { APPLICATION_STATUS } from "@/mock/applications";
 import { getCity } from "@/mock/cities";
+import { Select } from "@/app/component/ui/Fields";
 import EmptyState from "@/app/component/ui/EmptyState";
 
 const TONES = {
@@ -27,6 +28,13 @@ const TONES = {
   green: "bg-brand-soft text-brand-dark",
   red: "bg-red-50 text-red-600",
 };
+
+const STATUS_OPTIONS = Object.entries(APPLICATION_STATUS).map(([id, labels]) => ({
+  id,
+  fr: labels.fr,
+  ar: labels.ar,
+  en: labels.en,
+}));
 
 export default function EmployerDashboard() {
   const t = useT();
@@ -36,6 +44,8 @@ export default function EmployerDashboard() {
   const [jobs, setJobs] = useState(null);
   const [people, setPeople] = useState(null);
   const [tab, setTab] = useState("applicants");
+  const [updatingId, setUpdatingId] = useState(null);
+  const [statusError, setStatusError] = useState("");
 
   useEffect(() => {
     fetchCurrentEmployer().then(setEmployer);
@@ -51,6 +61,27 @@ export default function EmployerDashboard() {
   ];
 
   const list = tab === "applicants" ? people?.applicants : people?.saved;
+
+  const handleStatusChange = async (rowId, status) => {
+    setStatusError("");
+    setUpdatingId(rowId);
+    try {
+      await updateApplicationStatus(rowId, status);
+      setPeople((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          applicants: prev.applicants.map((row) =>
+            row.id === rowId ? { ...row, status } : row
+          ),
+        };
+      });
+    } catch {
+      setStatusError(t("employer.statusUpdateError"));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 font-poppins">
@@ -142,6 +173,10 @@ export default function EmployerDashboard() {
           <p className="mb-4 text-sm text-gray-500">{t("employer.savedProfilesHint")}</p>
         )}
 
+        {statusError && tab === "applicants" && (
+          <p className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-600">{statusError}</p>
+        )}
+
         {list === undefined || list === null ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -190,11 +225,19 @@ export default function EmployerDashboard() {
 
                   <div className="flex items-center gap-3">
                     {status && (
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${TONES[status.tone]}`}
-                      >
-                        {pick(status)}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <Select
+                          options={STATUS_OPTIONS}
+                          value={row.status}
+                          disabled={updatingId === row.id}
+                          onChange={(e) => handleStatusChange(row.id, e.target.value)}
+                          className={`w-auto min-w-[9.5rem] py-1.5 text-xs font-semibold ${TONES[status.tone]}`}
+                          aria-label={t("profile.currentStatus")}
+                        />
+                        {updatingId === row.id && (
+                          <span className="text-[11px] text-gray-400">{t("common.loading")}</span>
+                        )}
+                      </div>
                     )}
                     <Link
                       href={`/jobProfile/${c.id}`}

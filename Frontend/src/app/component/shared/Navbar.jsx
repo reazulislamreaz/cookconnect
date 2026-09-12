@@ -12,6 +12,7 @@ import { useT } from "@/i18n/LocaleProvider";
 import LanguageSwitch from "@/app/component/ui/LanguageSwitch";
 import { useSession } from "@/lib/session";
 import { fetchUnreadNotificationCount } from "@/mock/api";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notificationsSignal";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -29,11 +30,16 @@ export default function Navbar() {
       return undefined;
     }
     let alive = true;
-    fetchUnreadNotificationCount().then((count) => {
-      if (alive) setUnreadCount(count);
-    });
+    const refresh = () => {
+      fetchUnreadNotificationCount().then((count) => {
+        if (alive) setUnreadCount(count);
+      });
+    };
+    refresh();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
     return () => {
       alive = false;
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
     };
   }, [isLoggedIn, pathname]);
 

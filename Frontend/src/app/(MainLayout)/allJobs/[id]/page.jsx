@@ -16,13 +16,19 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   MapPin, Briefcase, CalendarDays, Clock, ArrowLeft, Check,
-  AlertTriangle, Building2, Wallet, Eye,
+  AlertTriangle, Building2, Wallet, Eye, Bookmark,
 } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n/LocaleProvider";
 import { useSession } from "@/lib/session";
 import { useSignupGate } from "@/app/component/ui/SignupGate";
-import { fetchJob, fetchCurrentCandidate, applyToJob } from "@/mock/api";
+import {
+  fetchJob,
+  fetchCurrentCandidate,
+  applyToJob,
+  fetchBookmarkJobIds,
+  toggleSaveJob,
+} from "@/mock/api";
 import { getCity } from "@/mock/cities";
 import {
   REQUIREMENT_BY_ID, BENEFIT_BY_ID, EXPERIENCE_LEVELS,
@@ -47,6 +53,8 @@ export default function JobDetailPage() {
   const [profile, setProfile] = useState(undefined);
   const [applied, setApplied] = useState(false);
   const [incomplete, setIncomplete] = useState(false);
+  const [initiallySaved, setInitiallySaved] = useState(false);
+  const [savedOverride, setSavedOverride] = useState(null);
 
   useEffect(() => {
     fetchJob(id).then(setJob);
@@ -55,6 +63,34 @@ export default function JobDetailPage() {
   useEffect(() => {
     if (isCandidate) fetchCurrentCandidate().then(setProfile);
   }, [isCandidate]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isCandidate) {
+      setInitiallySaved(false);
+      setSavedOverride(null);
+      return undefined;
+    }
+    let alive = true;
+    fetchBookmarkJobIds().then((ids) => {
+      if (alive) setInitiallySaved(ids.has(String(id)));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, isLoggedIn, isCandidate]);
+
+  const saved = savedOverride ?? initiallySaved;
+
+  const save = requireAuth(async () => {
+    if (isEmployer) return;
+    const next = !saved;
+    setSavedOverride(next);
+    try {
+      await toggleSaveJob(id, saved);
+    } catch {
+      setSavedOverride(saved);
+    }
+  });
 
   const apply = requireAuth(async () => {
     // A visitor can click Apply before the profile request settles. Reading the
@@ -156,7 +192,7 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          <div className="shrink-0 text-start sm:text-end">
+          <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
             <p className="flex items-center gap-1.5 text-lg font-bold text-gray-900 sm:justify-end">
               <Wallet size={17} className="text-brand" />
               {job.salaryMin.toLocaleString()} – {job.salaryMax.toLocaleString()}
@@ -164,6 +200,19 @@ export default function JobDetailPage() {
             <p className="text-xs text-gray-500">
               {job.currency} {t("common.perMonth")}
             </p>
+            {!isEmployer && (
+              <button
+                onClick={save}
+                className={`flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium transition ${
+                  saved
+                    ? "border-brand bg-brand-soft text-brand-dark"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <Bookmark size={15} fill={saved ? "currentColor" : "none"} />
+                {saved ? t("jobs.jobSaved") : t("jobs.saveJob")}
+              </button>
+            )}
           </div>
         </div>
 

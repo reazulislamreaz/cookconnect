@@ -21,10 +21,12 @@ import {
   fetchCurrentEmployer,
   saveCurrentEmployer,
   uploadEmployerLogo,
+  uploadEmployerCover,
   USE_API,
 } from "@/mock/api";
 import { CITIES, COUNTRY } from "@/mock/cities";
 import { ESTABLISHMENT_TYPES } from "@/mock/jobOptions";
+import ChangePasswordSection from "@/app/component/auth/ChangePasswordSection";
 
 export default function EditEmployerProfilePage() {
   const t = useT();
@@ -47,6 +49,11 @@ export default function EditEmployerProfilePage() {
       const file = await blobUrlToFile(profile.logo, "logo.jpg");
       next = await uploadEmployerLogo(file);
       next = { ...profile, ...next, logo: next.logo };
+    }
+    if (USE_API && next.cover?.startsWith("blob:")) {
+      const file = await blobUrlToFile(next.cover, "cover.jpg");
+      const uploaded = await uploadEmployerCover(file);
+      next = { ...next, ...uploaded, cover: uploaded.cover };
     }
     const savedProfile = await saveCurrentEmployer(next);
     setProfile((p) => ({ ...p, ...savedProfile }));
@@ -85,6 +92,15 @@ export default function EditEmployerProfilePage() {
             value={profile.logo}
             onChange={(v) => set("logo", v)}
             hint={t("employer.establishmentPhotoHint")}
+          />
+        </Section>
+
+        <Section title={t("employer.coverPhoto")}>
+          <AvatarUploader
+            round={false}
+            value={profile.cover}
+            onChange={(v) => set("cover", v)}
+            hint={t("employer.coverPhotoHint")}
           />
         </Section>
 
@@ -188,6 +204,8 @@ export default function EditEmployerProfilePage() {
             />
           </div>
         </Section>
+
+        <ChangePasswordSection />
       </div>
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
