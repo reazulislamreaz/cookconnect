@@ -1,8 +1,7 @@
-// Mock data access layer.
+// Data access layer for the public site.
 //
-// Every page reads through these async functions rather than importing the
-// fixtures directly, so replacing them with real `fetch` calls later is a
-// one-file change and no component has to be rewritten.
+// When NEXT_PUBLIC_API_URL is set, calls the real backend; otherwise serves
+// deterministic fixtures so the demo works without a running API.
 
 import { ACTIVE_JOBS, JOBS, getJob, getJobsByEmployer, isExpired, daysLeft } from "./jobs";
 import { CANDIDATES, getCandidate, CURRENT_CANDIDATE_ID } from "./candidates";
@@ -11,6 +10,7 @@ import { APPLICATIONS, SAVED_PROFILES, MY_APPLICATIONS } from "./applications";
 import { NOTIFICATIONS } from "./notifications";
 import { getJSON, setValue, SESSION_KEY } from "@/lib/browserStore";
 import { getProfileCompletion } from "@/lib/profileCompletion";
+import { ALL_POSITIONS } from "./sectors";
 
 /** Change Requirements 07: "Display 12 profiles per page". */
 export const PAGE_SIZE = 12;
@@ -18,34 +18,170 @@ export const PAGE_SIZE = 12;
 /** Guests only ever see the first page of results (Change Requirements 03). */
 export const GUEST_MAX_PAGES = 1;
 
+const USE_API = Boolean(process.env.NEXT_PUBLIC_API_URL);
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api/v1";
+
 const delay = (ms = 220) => new Promise((r) => setTimeout(r, ms));
 
 const matches = (value, filter) => !filter || filter === "all" || value === filter;
 
+const PLACEHOLDER_LOGO = "https://i.ibb.co/1Gfd7RtB/Rectangle-117.png";
+const PLACEHOLDER_PHOTO = "https://i.ibb.co/HD6WMnhg/Rectangle-119.png";
+
+/* ----------------------------------------------------------- API helpers */
+
+async function api(path, options = {}) {
+  const res = await fetch(`${API}${path}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.success === false) {
+    throw new Error(json.message || "Request failed");
+  }
+  return json.data;
+}
+
+async function apiWithMeta(path, options = {}) {
+  const res = await fetch(`${API}${path}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.success === false) {
+    throw new Error(json.message || "Request failed");
+  }
+  return { data: json.data, meta: json.meta };
+}
+
+function authHeaders() {
+  const token = getJSON(SESSION_KEY, null)?.accessToken;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function qs(params) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v != null && v !== "" && v !== "all") q.set(k, String(v));
+  });
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+const positionById = (id) => ALL_POSITIONS.find((p) => p.id === id);
+
+function pickLocalized(obj, field = "fr") {
+  if (!obj) return "";
+  if (typeof obj === "string") return obj;
+  return obj[field] || obj.fr || obj.en || "";
+}
+
+function mapCandidate(raw) {
+  if (!raw) return null;
+  const pos = positionById(raw.positionId);
+  const name = raw.name || `${raw.firstName || ""} ${raw.lastName || ""}`.trim();
+  const about = raw.about;
+  const mapped = {
+    ...raw,
+    id: raw.id || raw._id,
+    name,
+    photo: raw.photo || raw.photoUrl || PLACEHOLDER_PHOTO,
+    title: raw.title || pos?.fr || raw.positionId || "",
+    titleAr: raw.titleAr || pos?.ar || "",
+    titleEn: raw.titleEn || pos?.en || "",
+    completion: raw.completion ?? raw.completionPercent ?? 0,
+    about: typeof about === "string" ? about : pickLocalized(about, "fr"),
+    aboutAr: typeof about === "object" ? pickLocalized(about, "ar") : raw.aboutAr || "",
+    aboutEn: typeof about === "object" ? pickLocalized(about, "en") : raw.aboutEn || "",
+    canUploadFoodPhotos: Boolean(pos?.photos),
+    foodPhotos: raw.foodPhotos || [],
+    hasCv: Boolean(raw.cvAssetId || raw.hasCv),
+  };
+  if (!mapped.completion && mapped.firstName) {
+    mapped.completion = getProfileCompletion(mapped).percent;
+  }
+  return mapped;
+}
+
+const employerCache = new Map();
+
+async function getEmployerCached(id) {
+  if (!id) return null;
+  if (employerCache.has(id)) return employerCache.get(id);
+  try {
+    const raw = await api(`/employers/${id}`);
+    const mapped = {
+      ...raw,
+      id: raw.id,
+      logo: raw.logo || raw.logoUrl || PLACEHOLDER_LOGO,
+      cover: raw.cover || raw.coverUrl || PLACEHOLDER_LOGO,
+      about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
+      email: raw.email || "",
+    };
+    employerCache.set(id, mapped);
+    return mapped;
+  } catch {
+    return { id, name: "", logo: PLACEHOLDER_LOGO, type: "restaurant", city: "" };
+  }
+}
+
+async function mapJob(raw) {
+  if (!raw) return null;
+  const employer = await getEmployerCached(raw.employerId);
+  const title = raw.title;
+  const description = raw.description;
+  const mapped = {
+    ...raw,
+    id: raw.id || raw._id,
+    title: typeof title === "string" ? title : pickLocalized(title, "fr"),
+    titleAr: typeof title === "object" ? pickLocalized(title, "ar") : raw.titleAr || "",
+    titleEn: typeof title === "object" ? pickLocalized(title, "en") : raw.titleEn || "",
+    description: typeof description === "string" ? description : pickLocalized(description, "fr"),
+    descriptionAr: typeof description === "object" ? pickLocalized(description, "ar") : raw.descriptionAr || "",
+    descriptionEn: typeof description === "object" ? pickLocalized(description, "en") : raw.descriptionEn || "",
+    employerName: employer?.name || raw.employerName || "",
+    establishmentType: employer?.type || raw.establishmentType || "",
+    logo: employer?.logo || PLACEHOLDER_LOGO,
+    applicants: raw.applicationCount ?? raw.applicants ?? 0,
+    postedAt: raw.postedAt ? String(raw.postedAt).slice(0, 10) : raw.postedAt,
+    expiresAt: raw.expiresAt ? String(raw.expiresAt).slice(0, 10) : raw.expiresAt,
+  };
+  mapped.daysLeft = daysLeft(mapped);
+  mapped.expired = isExpired(mapped);
+  return mapped;
+}
+
+function paginateFromMeta(items, meta, isLoggedIn) {
+  const total = meta?.total ?? items.length;
+  const totalPages = meta?.totalPages ?? Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const visiblePages = isLoggedIn ? totalPages : Math.min(totalPages, GUEST_MAX_PAGES);
+  const page = meta?.page ?? 1;
+  return {
+    items,
+    page,
+    totalPages,
+    visiblePages,
+    total,
+    gated: meta?.gated ?? (!isLoggedIn && totalPages > visiblePages),
+  };
+}
+
 /* ------------------------------------------------- candidate profile edits */
 
-/**
- * Profile edits, layered over the read-only fixtures.
- *
- * The fixtures in mock/candidates.js are module constants, so a saved profile
- * used to vanish the moment the component re-fetched: "Save" set a banner and
- * changed nothing. That made the "Incomplete Profile" gate a dead end — it
- * sent a candidate to Edit My Profile, and completing the form still left them
- * blocked, because the next read returned the original blank fields.
- *
- * Edits live in browser storage, keyed by candidate id, and are merged on the
- * way out. When this layer is replaced by a real API, this is one PATCH call
- * and the merge disappears.
- */
 const PROFILE_EDITS_KEY = "nkhedmou.profileEdits";
 
 const allProfileEdits = () => getJSON(PROFILE_EDITS_KEY, {}) || {};
 
-/**
- * `completion` is recomputed rather than carried over from the fixture: it is
- * derived from the required fields, so a merge that fills one of them has to
- * move the percentage with it.
- */
 function withEdits(candidate) {
   if (!candidate) return candidate;
   const patch = allProfileEdits()[candidate.id];
@@ -70,18 +206,12 @@ function paginate(items, page, isLoggedIn) {
     totalPages,
     visiblePages,
     total: items.length,
-    // True when there are more results the visitor cannot reach without an account.
     gated: !isLoggedIn && totalPages > visiblePages,
   };
 }
 
 /* ------------------------------------------------------------------ jobs */
 
-/**
- * Job offer search.
- * `searchAll: true` is the "Search All" button from Change Requirements 07 —
- * it ignores every filter and returns the whole active database.
- */
 export async function searchJobs({
   q = "",
   city = "all",
@@ -94,6 +224,15 @@ export async function searchJobs({
   isLoggedIn = false,
   searchAll = false,
 } = {}) {
+  if (USE_API) {
+    const params = searchAll
+      ? { page, limit: PAGE_SIZE }
+      : { q, city, sectorId, positionId, contractType, establishmentType, experience, page, limit: PAGE_SIZE };
+    const { data, meta } = await apiWithMeta(`/jobs${qs(params)}`);
+    const items = await Promise.all((data || []).map(mapJob));
+    return paginateFromMeta(items, meta, isLoggedIn);
+  }
+
   await delay();
 
   const term = q.trim().toLowerCase();
@@ -114,20 +253,28 @@ export async function searchJobs({
 }
 
 export async function fetchJob(id) {
+  if (USE_API) {
+    const raw = await api(`/jobs/${id}`);
+    return raw ? mapJob(raw) : null;
+  }
+
   await delay(150);
   const job = getJob(id);
   return job ? { ...job, daysLeft: daysLeft(job), expired: isExpired(job) } : null;
 }
 
-/** Home page teaser: the first page of offers shown to a signed-out visitor. */
 export async function fetchFeaturedJobs(limit = 6) {
+  if (USE_API) {
+    const data = await api(`/jobs/featured${qs({ limit })}`);
+    return Promise.all((data || []).slice(0, limit).map(mapJob));
+  }
+
   await delay(150);
   return ACTIVE_JOBS.slice(0, limit);
 }
 
 /* ------------------------------------------------------------ candidates */
 
-/** Candidate search. Filters per ClientDoc 6: city, sector, job, experience. */
 export async function searchCandidates({
   q = "",
   city = "all",
@@ -139,6 +286,15 @@ export async function searchCandidates({
   isLoggedIn = false,
   searchAll = false,
 } = {}) {
+  if (USE_API) {
+    const params = searchAll
+      ? { page, limit: PAGE_SIZE }
+      : { q, city, sectorId, positionId, experience, availability, page, limit: PAGE_SIZE };
+    const { data, meta } = await apiWithMeta(`/candidates${qs(params)}`);
+    const items = (data || []).map(mapCandidate);
+    return paginateFromMeta(items, meta, isLoggedIn);
+  }
+
   await delay();
 
   const term = q.trim().toLowerCase();
@@ -157,11 +313,15 @@ export async function searchCandidates({
   return paginate(results, page, isLoggedIn);
 }
 
-/**
- * A candidate's public profile. The phone number is only ever attached for a
- * signed-in employer (Change Requirements 13 — contact privacy).
- */
 export async function fetchCandidate(id, { asEmployer = false } = {}) {
+  if (USE_API) {
+    const raw = await api(`/candidates/${id}`);
+    const c = mapCandidate(raw);
+    if (!c) return null;
+    const { phone, ...rest } = c;
+    return asEmployer && phone ? { ...rest, phone } : rest;
+  }
+
   await delay(150);
   const c = withEdits(getCandidate(id));
   if (!c) return null;
@@ -169,25 +329,29 @@ export async function fetchCandidate(id, { asEmployer = false } = {}) {
   return asEmployer ? { ...rest, phone } : rest;
 }
 
-/**
- * The signed-in candidate.
- *
- * Reads the demo session straight from browser storage rather than taking an
- * id argument, so every caller keeps its existing signature. This used to
- * return CURRENT_CANDIDATE_ID unconditionally, which meant signing in as the
- * incomplete-profile demo account still loaded the 100%-complete fixture and
- * the profile gate could never be observed.
- */
 export async function fetchCurrentCandidate() {
+  if (USE_API) {
+    try {
+      const raw = await api("/candidates/me");
+      return mapCandidate(raw);
+    } catch {
+      return null;
+    }
+  }
+
   await delay(120);
   return withEdits(getCandidate(currentCandidateId()));
 }
 
-/**
- * Persist the signed-in candidate's profile and return the saved result, so a
- * caller can show the new completion percentage without a second round trip.
- */
 export async function saveCurrentCandidate(patch) {
+  if (USE_API) {
+    const raw = await api("/candidates/me", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    return mapCandidate(raw);
+  }
+
   await delay(180);
 
   const id = currentCandidateId();
@@ -200,17 +364,50 @@ export async function saveCurrentCandidate(patch) {
 /* -------------------------------------------------------------- employer */
 
 export async function fetchEmployer(id) {
+  if (USE_API) {
+    return getEmployerCached(id);
+  }
+
   await delay(120);
   return getEmployer(id);
 }
 
 export async function fetchCurrentEmployer() {
+  if (USE_API) {
+    try {
+      const raw = await api("/employers/me");
+      return {
+        ...raw,
+        id: raw.id,
+        logo: raw.logo || raw.logoUrl || PLACEHOLDER_LOGO,
+        cover: raw.cover || raw.coverUrl || PLACEHOLDER_LOGO,
+        about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   await delay(120);
   return getEmployer(CURRENT_EMPLOYER_ID);
 }
 
-/** Employer's own offers, split the way the job-management screen needs them. */
 export async function fetchEmployerJobs(employerId = CURRENT_EMPLOYER_ID) {
+  if (USE_API) {
+    const grouped = await api("/jobs/me/list");
+    const flatten = (arr) => Promise.all((arr || []).map(mapJob));
+    const [active, pending, expired, draft, rejected, closed] = await Promise.all([
+      flatten(grouped.active),
+      flatten(grouped.pending),
+      flatten(grouped.expired),
+      flatten(grouped.draft),
+      flatten(grouped.rejected),
+      flatten(grouped.closed),
+    ]);
+    const all = [...active, ...pending, ...expired, ...draft, ...rejected, ...closed];
+    return { all, active, pending, expired };
+  }
+
   await delay(180);
   const all = getJobsByEmployer(employerId).map((j) => ({
     ...j,
@@ -225,8 +422,44 @@ export async function fetchEmployerJobs(employerId = CURRENT_EMPLOYER_ID) {
   };
 }
 
-/** The two candidate sources an employer sees (Change Requirements 10). */
 export async function fetchEmployerCandidates(employerId = CURRENT_EMPLOYER_ID) {
+  if (USE_API) {
+    const [applicantsRaw, savedRaw] = await Promise.all([
+      api("/applications/received").catch(() => []),
+      api("/bookmarks/profiles").catch(() => []),
+    ]);
+
+    const applicants = await Promise.all(
+      (applicantsRaw || []).map(async (a) => {
+        const candidate = mapCandidate(a.candidateId || a.candidate);
+        return {
+          ...a,
+          id: a.id,
+          candidateId: candidate?.id || a.candidateId,
+          employerId,
+          candidate,
+          source: "applied",
+        };
+      })
+    );
+
+    const saved = await Promise.all(
+      (savedRaw || []).map(async (s) => {
+        const candidate = mapCandidate(s.target || s.candidate);
+        return {
+          ...s,
+          id: s.id,
+          candidateId: candidate?.id || s.targetId,
+          employerId,
+          candidate,
+          source: "saved",
+        };
+      })
+    );
+
+    return { applicants, saved };
+  }
+
   await delay(200);
 
   const applicants = APPLICATIONS.filter((a) => a.employerId === employerId).map((a) => ({
@@ -244,6 +477,10 @@ export async function fetchEmployerCandidates(employerId = CURRENT_EMPLOYER_ID) 
 }
 
 export async function fetchEmployers() {
+  if (USE_API) {
+    return [];
+  }
+
   await delay(120);
   return EMPLOYERS;
 }
@@ -251,20 +488,40 @@ export async function fetchEmployers() {
 /* ------------------------------------------------ candidate's own account */
 
 export async function fetchMyApplications() {
+  if (USE_API) {
+    const rows = await api("/applications/me");
+    return Promise.all(
+      (rows || []).map(async (a) => {
+        const jobRaw = a.jobId && typeof a.jobId === "object" ? a.jobId : null;
+        const job = jobRaw ? await mapJob(jobRaw) : a.jobId ? await fetchJob(a.jobId) : null;
+        return {
+          ...a,
+          id: a.id,
+          jobId: job?.id || a.jobId,
+          job,
+          appliedAt: a.appliedAt ? String(a.appliedAt).slice(0, 10) : a.appliedAt,
+        };
+      })
+    );
+  }
+
   await delay(180);
   return MY_APPLICATIONS.map((a) => ({ ...a, job: getJob(a.jobId) }));
 }
 
-/**
- * Headline counters for the candidate dashboard.
- *
- * "Interested employers" is real data — the employers who bookmarked this
- * candidate while browsing. Profile views have no fixture behind them, so the
- * number is derived from the candidate's own index rather than invented at
- * render time: Math.random() here would differ between the server and the
- * client and break hydration, and would also change on every keystroke.
- */
 export async function fetchMyStats() {
+  if (USE_API) {
+    const [profile, applications] = await Promise.all([
+      api("/candidates/me").catch(() => null),
+      api("/applications/me").catch(() => []),
+    ]);
+    return {
+      views: profile?.profileViews ?? 0,
+      applications: (applications || []).length,
+      savedByEmployers: 0,
+    };
+  }
+
   await delay(150);
 
   const id = currentCandidateId();
@@ -280,35 +537,81 @@ export async function fetchMyStats() {
 /* --------------------------------------------------------- notifications */
 
 export async function fetchNotifications() {
+  if (USE_API) {
+    const { data } = await apiWithMeta("/notifications");
+    return (data || []).map((n) => ({
+      id: n.id,
+      type: n.type,
+      title: pickLocalized(n.title, "fr"),
+      titleAr: pickLocalized(n.title, "ar"),
+      titleEn: pickLocalized(n.title, "en"),
+      body: pickLocalized(n.body, "fr"),
+      bodyAr: pickLocalized(n.body, "ar"),
+      bodyEn: pickLocalized(n.body, "en"),
+      date: n.createdAt ? String(n.createdAt).slice(0, 10) : "",
+      read: Boolean(n.read),
+    }));
+  }
+
   await delay(120);
   return NOTIFICATIONS;
 }
 
 /* ------------------------------------------------------------ mutations */
-// No-ops that resolve, so form submit handlers already have the right shape.
 
 export async function applyToJob(jobId) {
+  if (USE_API) {
+    await api("/applications", { method: "POST", body: JSON.stringify({ jobId }) });
+    return { ok: true, jobId };
+  }
+
   await delay(400);
   return { ok: true, jobId };
 }
 
-/** Offers never go live directly — admin approves first (Change Req 08). */
 export async function postJob(payload) {
+  if (USE_API) {
+    const job = await api("/jobs", { method: "POST", body: JSON.stringify(payload) });
+    return { ok: true, status: job?.status || "pending", message: "offer.pendingApproval", payload };
+  }
+
   await delay(600);
   return { ok: true, status: "pending", message: "offer.pendingApproval", payload };
 }
 
 export async function republishJob(jobId) {
+  if (USE_API) {
+    await api(`/jobs/${jobId}/republish`, { method: "POST" });
+    return { ok: true, jobId, status: "pending" };
+  }
+
   await delay(400);
   return { ok: true, jobId, status: "pending" };
 }
 
 export async function toggleSaveProfile(candidateId, saved) {
+  if (USE_API) {
+    if (saved) {
+      await api("/bookmarks/profiles", {
+        method: "POST",
+        body: JSON.stringify({ targetId: candidateId }),
+      });
+    } else {
+      await api(`/bookmarks/profiles${qs({ targetId: candidateId })}`, { method: "DELETE" });
+    }
+    return { ok: true, candidateId, saved };
+  }
+
   await delay(250);
   return { ok: true, candidateId, saved };
 }
 
 export async function submitFeedback(payload) {
+  if (USE_API) {
+    await api("/feedback", { method: "POST", body: JSON.stringify(payload) });
+    return { ok: true, payload };
+  }
+
   await delay(400);
   return { ok: true, payload };
 }

@@ -59,10 +59,151 @@ import {
 import { CITIES } from "./cities";
 import { ALL_POSITIONS, SECTORS } from "./sectors";
 import { AVAILABILITY, EXPERIENCE_LEVELS, REQUIREMENT_BY_ID } from "./jobOptions";
-import { getJSON, setValue, ADMIN_SESSION_KEY } from "@/lib/browserStore";
+import { getJSON, getString, setValue, ADMIN_SESSION_KEY } from "@/lib/browserStore";
 
 /** Network-ish pause, so loading states are visible and honest. */
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+
+/* ----------------------------------------------------------- API mode */
+
+const USE_API = Boolean(process.env.NEXT_PUBLIC_API_URL);
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api/v1";
+const ADMIN_TOKEN_KEY = "cookkonnekt.adminToken";
+const ADMIN_META_KEY = "cookkonnekt.adminMeta";
+
+async function adminFetch(path, options = {}) {
+  const token =
+    getJSON(ADMIN_META_KEY, null)?.accessToken ||
+    getString(ADMIN_TOKEN_KEY, "") ||
+    getJSON(ADMIN_SESSION_KEY, null)?.accessToken;
+
+  const res = await fetch(`${API}${path}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.success === false) {
+    throw new Error(json.message || "Request failed");
+  }
+  return json;
+}
+
+async function adminApi(path, options = {}) {
+  const json = await adminFetch(path, options);
+  return json.data;
+}
+
+async function adminApiWithMeta(path, options = {}) {
+  const json = await adminFetch(path, options);
+  return { data: json.data, meta: json.meta };
+}
+
+function adminQs(params) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v != null && v !== "" && v !== "all") q.set(k, String(v));
+  });
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+function pickL(obj, locale = "fr") {
+  if (!obj) return "";
+  if (typeof obj === "string") return obj;
+  return obj[locale] || obj.fr || obj.en || "";
+}
+
+function isoDay(value) {
+  if (!value) return "";
+  return String(value).slice(0, 10);
+}
+
+function mapAdminUser(user) {
+  return {
+    id: user.id,
+    name: user.email?.split("@")[0] || "Admin",
+    email: user.email,
+    role: user.adminLevel === "super" ? "super" : "sub",
+    permissions: user.permissions || [],
+    disabled: user.status === "suspended",
+    lastActive: user.lastLoginAt ? isoDay(user.lastLoginAt) : "—",
+  };
+}
+
+function mapCandidateRow(c) {
+  const pos = ALL_POSITIONS.find((p) => p.id === c.positionId);
+  return {
+    id: c.id,
+    name: `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+    photo: c.photoUrl || "",
+    sectorId: c.sectorId,
+    positionId: c.positionId,
+    title: pos?.fr || c.positionId || "",
+    titleAr: pos?.ar || "",
+    titleEn: pos?.en || "",
+    city: c.city,
+    experience: c.experience,
+    availability: c.availability,
+    contractType: c.contractType,
+    expectedSalary: c.expectedSalary,
+    completion: c.completionPercent ?? 0,
+    verified: c.verified,
+    blocked: c.user?.status === "suspended",
+    status: c.user?.status === "deleted" ? "deleted" : c.user?.status === "suspended" ? "deactivated" : "active",
+    hasCv: Boolean(c.cvAssetId),
+    registeredAt: isoDay(c.createdAt),
+    email: c.user?.email,
+    phone: c.phone,
+    ref: c.id?.slice(-6),
+  };
+}
+
+function mapEmployerRow(e) {
+  return {
+    id: e.id,
+    name: e.name,
+    type: e.type,
+    city: e.city,
+    address: e.address,
+    email: e.user?.email || "",
+    phone: e.phone,
+    verified: e.verified,
+    blocked: e.status === "blocked",
+    status: e.status,
+    ref: e.id?.slice(-6),
+    logo: e.logoUrl || "",
+    cover: e.coverUrl || "",
+  };
+}
+
+function mapJobRow(j, employer) {
+  return {
+    ...j,
+    id: j.id,
+    title: pickL(j.title),
+    titleAr: pickL(j.title, "ar"),
+    titleEn: pickL(j.title, "en"),
+    employerId: j.employerId,
+    employerName: employer?.name || "",
+    city: j.city,
+    status: j.status,
+    postedAt: isoDay(j.postedAt),
+    expiresAt: isoDay(j.expiresAt),
+    contractType: j.contractType,
+    experience: j.experience,
+    salaryMin: j.salaryMin,
+    salaryMax: j.salaryMax,
+    daysLeft: j.expiresAt
+      ? Math.ceil((new Date(j.expiresAt).getTime() - Date.now()) / 86400000)
+      : 0,
+    expired: j.status === "expired" || (j.expiresAt && new Date(j.expiresAt) < new Date()),
+  };
+}
 
 /* ------------------------------------------------------------- overlay */
 
@@ -152,6 +293,7 @@ const reasonIn = (reason, locale) => {
  * each of them.
  */
 export function logAction(action, { target, reason } = {}) {
+  if (USE_API) return null;
   const meta = ACTION_DETAILS[action];
   if (!meta) return null;
 
@@ -197,6 +339,7 @@ export function logAction(action, { target, reason } = {}) {
  * sent even after the wording changes.
  */
 export function notifyUser(templateId, { to, params = {} } = {}) {
+  if (USE_API) return null;
   const template = NOTIFICATION_TEMPLATES[templateId];
   if (!template || !to) return null;
 
@@ -240,6 +383,7 @@ export function notifyUser(templateId, { to, params = {} } = {}) {
 
 /** Everything queued for a user, newest first. The outbox screen is D1. */
 export async function fetchNotificationOutbox() {
+  if (USE_API) return [];
   await delay();
   return [...readOverlay().outbox].reverse();
 }
@@ -247,6 +391,32 @@ export async function fetchNotificationOutbox() {
 /* ----------------------------------------------------------- dashboard */
 
 export async function fetchDashboard() {
+  if (USE_API) {
+    const [stats, cookGrowth, restaurantGrowth, requests] = await Promise.all([
+      adminApi("/admin/dashboard/stats"),
+      adminApi("/admin/dashboard/growth?metric=cooks"),
+      adminApi("/admin/dashboard/growth?metric=restaurants"),
+      adminApi("/admin/employers/requests"),
+    ]);
+
+    const cookPoints = (cookGrowth?.buckets || []).map((b) => b.count);
+    const restPoints = (restaurantGrowth?.buckets || []).map((b) => b.count);
+
+    return {
+      totals: {
+        cooks: stats.candidates,
+        restaurants: stats.employers,
+        verifiedProfiles: stats.candidates,
+        availableJobs: stats.activeJobs,
+      },
+      pendingOffers: stats.pendingJobs,
+      months: MONTHS,
+      cookGrowth: { year: cookGrowth?.year || new Date().getFullYear(), points: cookPoints },
+      restaurantGrowth: { year: restaurantGrowth?.year || new Date().getFullYear(), points: restPoints },
+      requests: (requests || []).map(mapEmployerRow),
+    };
+  }
+
   await delay();
   const overlay = readOverlay();
 
@@ -312,11 +482,45 @@ export const BANNER_RULES = {
 };
 
 export async function fetchSiteSettings() {
+  if (USE_API) {
+    const raw = await adminApi("/admin/site-settings");
+    return {
+      background: raw.mode === "image" ? "image" : "blank",
+      backgroundImage: raw.imageUrl || null,
+      imageName: raw.imageName || "",
+      headline: raw.headline || DEFAULT_SITE_SETTINGS.headline,
+      subheadline: raw.subheadline || DEFAULT_SITE_SETTINGS.subheadline,
+      ctaLabel: raw.cta || DEFAULT_SITE_SETTINGS.ctaLabel,
+    };
+  }
+
   await delay(150);
   return { ...DEFAULT_SITE_SETTINGS, ...(getJSON(SITE_KEY, null) || {}) };
 }
 
 export async function saveSiteSettings(next) {
+  if (USE_API) {
+    const body = {
+      mode: next.background === "image" ? "image" : "blank",
+      headline: next.headline,
+      subheadline: next.subheadline,
+      cta: next.ctaLabel,
+    };
+    const saved = await adminApi("/admin/site-settings", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return {
+      ok: true,
+      settings: {
+        background: saved.mode === "image" ? "image" : "blank",
+        headline: saved.headline,
+        subheadline: saved.subheadline,
+        ctaLabel: saved.cta,
+      },
+    };
+  }
+
   await delay(300);
 
   const merged = { ...DEFAULT_SITE_SETTINGS, ...next };
@@ -342,6 +546,29 @@ export async function saveSiteSettings(next) {
 // so no screen could show them. This is that route.
 
 export async function fetchStatistics({ days = 30 } = {}) {
+  if (USE_API) {
+    const data = await adminApi(`/admin/statistics${adminQs({ days })}`);
+    return {
+      candidates: {
+        total: data.candidates?.total ?? data.candidates?.registered ?? 0,
+        verified: data.candidates?.verified ?? 0,
+        complete: data.candidates?.complete ?? 0,
+      },
+      employers: {
+        total: data.employers?.total ?? data.employers?.registered ?? 0,
+        verified: data.employers?.verified ?? 0,
+        pending: data.employers?.pending ?? 0,
+      },
+      offers: data.offers || {},
+      registrations: data.candidatesPerDay || [],
+      market: {
+        searchedTitles: (data.candidatesByPosition || []).map((r) => ({ id: r.id, count: r.count })),
+        searchedCities: [],
+        averageSalary: 0,
+      },
+    };
+  }
+
   await delay();
   const overlay = readOverlay();
   const offers = liveJobs(overlay);
@@ -411,6 +638,12 @@ const liveCandidates = (overlay) =>
  * enforcing it properly is E3 in the UI and the backend behind it.
  */
 export function can(permission) {
+  if (USE_API) {
+    const meta = getJSON(ADMIN_META_KEY, null);
+    if (meta?.adminLevel === "super") return true;
+    return (meta?.permissions || []).includes(permission);
+  }
+
   const admin = actingAdmin();
   if (!admin) return false;
 
@@ -422,6 +655,11 @@ export function can(permission) {
 
 /** Everything the signed-in admin may do, for deriving the sidebar in one pass. */
 export function currentPermissions() {
+  if (USE_API) {
+    const meta = getJSON(ADMIN_META_KEY, null);
+    return meta?.permissions || [];
+  }
+
   const admin = actingAdmin();
   if (!admin) return [];
 
@@ -442,6 +680,26 @@ export async function fetchCandidateDatabase({
   minCompletion = 0,
   includeContact = false,
 } = {}) {
+  if (USE_API) {
+    const { data, meta } = await adminApiWithMeta(
+      `/admin/candidates${adminQs({ q, position, sector, city, experience, availability, verified, minCompletion })}`
+    );
+    const rows = (data || []).map(mapCandidateRow);
+    return {
+      rows,
+      contactIncluded: includeContact && can("export-cv"),
+      canExportContact: can("export-cv"),
+      total: meta?.total ?? rows.length,
+      options: {
+        positions: ALL_POSITIONS,
+        sectors: SECTORS,
+        cities: CITIES,
+        experience: EXPERIENCE_LEVELS,
+        availability: AVAILABILITY,
+      },
+    };
+  }
+
   await delay();
 
   const overlay = readOverlay();
@@ -512,6 +770,8 @@ export async function fetchCandidateDatabase({
  * contact columns were part of it (Improvement points 20).
  */
 export async function logCandidateExport({ rows = 0, filters = {}, withContact = false } = {}) {
+  if (USE_API) return { ok: true, rows };
+
   await delay(100);
 
   const applied = Object.entries(filters)
@@ -537,6 +797,24 @@ export async function logCandidateExport({ rows = 0, filters = {}, withContact =
  * a profile the admin took down has to be findable again to be restored.
  */
 export async function fetchChefs({ verified = "verified", q = "" } = {}) {
+  if (USE_API) {
+    const status =
+      verified === "deleted" ? "deleted" : verified === "deactivated" ? "suspended" : undefined;
+    const verifiedFilter = verified === "verified" ? "true" : verified === "unverified" ? "false" : undefined;
+    const { data } = await adminApiWithMeta(
+      `/admin/candidates${adminQs({ q, status, verified: verifiedFilter })}`
+    );
+    const rows = (data || []).map(mapCandidateRow);
+    const live = rows.filter((c) => c.status === "active");
+    return {
+      rows,
+      verifiedCount: live.filter((c) => c.verified).length,
+      unverifiedCount: live.filter((c) => !c.verified).length,
+      deactivatedCount: rows.filter((c) => c.status === "deactivated").length,
+      deletedCount: rows.filter((c) => c.status === "deleted").length,
+    };
+  }
+
   await delay();
   const overlay = readOverlay();
 
@@ -572,6 +850,24 @@ export async function fetchChefs({ verified = "verified", q = "" } = {}) {
  * answer "who looked at this person's number, and when".
  */
 export async function fetchChef(id, { revealContact = false } = {}) {
+  if (USE_API) {
+    const raw = await adminApi(`/admin/candidates/${id}`);
+    const candidate = mapCandidateRow(raw);
+    const maySeeContact = can("view-contact");
+    if (revealContact && maySeeContact) {
+      logAction("contact.viewed", { target: candidate.name });
+    }
+    const { phone, email, ...withoutContact } = candidate;
+    const visible = revealContact && maySeeContact ? candidate : withoutContact;
+    return {
+      ...visible,
+      contactVisible: revealContact && maySeeContact,
+      canRevealContact: maySeeContact,
+      dishPhotos: [],
+      pendingPhotos: [],
+    };
+  }
+
   await delay(150);
 
   const index = CANDIDATES.findIndex((c) => c.id === id);
@@ -640,6 +936,14 @@ export async function fetchCandidateHistory(id) {
 }
 
 export async function setChefVerified(id, verified) {
+  if (USE_API) {
+    await adminApi(`/admin/candidates/${id}/verification`, {
+      method: "PATCH",
+      body: JSON.stringify({ verified }),
+    });
+    return { ok: true, id, verified };
+  }
+
   await delay(250);
   patchCandidate(id, { verified });
 
@@ -681,6 +985,10 @@ const EDITABLE_CANDIDATE_FIELDS = [
  * typo away from rewriting a candidate's id or their verification state.
  */
 export async function updateCandidate(id, changes) {
+  if (USE_API) {
+    return { ok: true, id, changes };
+  }
+
   await delay(300);
 
   const patch = Object.fromEntries(
@@ -730,6 +1038,15 @@ export async function removeCandidateSkill(id, skillId) {
  * breath, and a record that is really gone cannot be restored or audited.
  */
 export async function setCandidateStatus(id, status) {
+  if (USE_API) {
+    const apiStatus = status === "deactivated" ? "suspended" : status === "deleted" ? "deleted" : "active";
+    await adminApi(`/admin/candidates/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: apiStatus }),
+    });
+    return { ok: true, id, status };
+  }
+
   await delay(300);
   patchCandidate(id, { status });
 
@@ -747,6 +1064,14 @@ export async function setCandidateStatus(id, status) {
 
 /** Bars an account for abuse — Improvement points 16, the repeat-uploader case. */
 export async function setCandidateBlocked(id, blocked, reason) {
+  if (USE_API) {
+    await adminApi(`/admin/candidates/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: blocked ? "suspended" : "active" }),
+    });
+    return { ok: true, id, blocked };
+  }
+
   await delay(300);
   patchCandidate(id, { blocked });
 
@@ -765,6 +1090,11 @@ export async function setCandidateBlocked(id, blocked, reason) {
 /* --------------------------------------------------------- restaurants */
 
 export async function fetchRestaurants({ q = "" } = {}) {
+  if (USE_API) {
+    const { data } = await adminApiWithMeta(`/admin/employers${adminQs({ q })}`);
+    return (data || []).map(mapEmployerRow);
+  }
+
   await delay();
   const overlay = readOverlay();
 
@@ -777,6 +1107,29 @@ export async function fetchRestaurants({ q = "" } = {}) {
 }
 
 export async function fetchRestaurant(id) {
+  if (USE_API) {
+    const raw = await adminApi(`/admin/employers/${id}`);
+    const base = mapEmployerRow(raw);
+    const jobsRaw = await adminApi(`/admin/jobs${adminQs({ employerId: id })}`).catch(() => []);
+    const jobs = (jobsRaw?.data || jobsRaw || []).map((j) => mapJobRow(j, base));
+    return {
+      ...base,
+      blocked: base.status === "blocked",
+      activity: {
+        offersPublished: jobs.length,
+        offersActive: jobs.filter((j) => j.status === "active" && !j.expired).length,
+        offersPending: jobs.filter((j) => j.status === "pending").length,
+        applicationsReceived: 0,
+        profilesViewed: 0,
+        contactRequests: 0,
+        declaredHires: 0,
+        lastActivity: isoDay(raw.updatedAt),
+      },
+      jobs,
+      dishPhotos: [],
+    };
+  }
+
   await delay(150);
 
   const index = EMPLOYERS.findIndex((e) => e.id === id);
@@ -814,6 +1167,14 @@ export async function fetchRestaurant(id) {
 }
 
 export async function setRestaurantBlocked(id, blocked, reason) {
+  if (USE_API) {
+    await adminApi(`/admin/employers/${id}/block`, {
+      method: "PATCH",
+      body: JSON.stringify({ blocked, reason }),
+    });
+    return { ok: true, id, blocked };
+  }
+
   await delay(250);
   const overlay = readOverlay();
   writeOverlay({ restaurantBlocked: { ...overlay.restaurantBlocked, [id]: blocked } });
@@ -833,12 +1194,22 @@ export async function setRestaurantBlocked(id, blocked, reason) {
 /* ------------------------------------------------ restaurant requests */
 
 export async function fetchRequests() {
+  if (USE_API) {
+    const rows = await adminApi("/admin/employers/requests");
+    return (rows || []).map(mapEmployerRow);
+  }
+
   await delay();
   const overlay = readOverlay();
   return restaurantRequests().filter((r) => !overlay.requests[r.id]);
 }
 
 export async function fetchRequest(id) {
+  if (USE_API) {
+    const raw = await adminApi(`/admin/employers/${id}`);
+    return { ...mapEmployerRow(raw), decision: null, dishPhotos: [] };
+  }
+
   await delay(150);
 
   const all = restaurantRequests();
@@ -860,6 +1231,17 @@ export async function fetchRequest(id) {
  * it can act on, so it is only sent once there is something to say.
  */
 export async function decideRequest(id, decision, reason) {
+  if (USE_API) {
+    await adminApi(`/admin/employers/${id}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: decision === "approved" ? "active" : "rejected",
+        rejectionReason: reason?.note || reason?.fr || reason || "",
+      }),
+    });
+    return { ok: true, id, decision };
+  }
+
   await delay(300);
   const overlay = readOverlay();
   writeOverlay({ requests: { ...overlay.requests, [id]: decision } });
@@ -923,6 +1305,24 @@ const decorate = (job) => ({
 });
 
 export async function fetchPendingOffers({ q = "" } = {}) {
+  if (USE_API) {
+    const { data } = await adminApiWithMeta(`/admin/jobs${adminQs({ status: "pending", q })}`);
+    const rows = await Promise.all(
+      (data || []).map(async (j) => {
+        const employer = await adminApi(`/admin/employers/${j.employerId}`).catch(() => null);
+        return {
+          ...mapJobRow(j, employer),
+          employer: employer ? mapEmployerRow(employer) : null,
+          waitingDays: j.postedAt
+            ? Math.max(0, Math.floor((Date.now() - new Date(j.postedAt).getTime()) / 86400000))
+            : 0,
+          applications: j.applicationCount ?? 0,
+        };
+      })
+    );
+    return rows.sort((a, b) => (a.postedAt || "").localeCompare(b.postedAt || ""));
+  }
+
   await delay();
 
   return liveJobs(readOverlay())
@@ -940,6 +1340,14 @@ export async function fetchPendingOffers({ q = "" } = {}) {
 }
 
 export async function approveOffer(id) {
+  if (USE_API) {
+    const job = await adminApi(`/admin/jobs/${id}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "active" }),
+    });
+    return { ok: true, id, status: "active", expiresAt: isoDay(job.expiresAt) };
+  }
+
   await delay(300);
 
   const overlay = readOverlay();
@@ -981,6 +1389,17 @@ export async function approveOffer(id) {
 
 /** `reason` is an entry from OFFER_REJECTION_REASONS, optionally with a note. */
 export async function rejectOffer(id, reason) {
+  if (USE_API) {
+    await adminApi(`/admin/jobs/${id}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "rejected",
+        rejectionReason: reason?.note || reason?.fr || reason?.id || "other",
+      }),
+    });
+    return { ok: true, id, status: "rejected" };
+  }
+
   await delay(300);
 
   const overlay = readOverlay();
@@ -1020,6 +1439,14 @@ export async function rejectOffer(id, reason) {
  * four months.
  */
 export async function extendOffer(id, until) {
+  if (USE_API) {
+    await adminApi(`/admin/jobs/${id}/extend`, {
+      method: "PATCH",
+      body: JSON.stringify({ extendedUntil: until }),
+    });
+    return { ok: true, id, extendedUntil: until };
+  }
+
   await delay(300);
 
   const overlay = readOverlay();
@@ -1038,6 +1465,14 @@ export async function extendOffer(id, until) {
 
 /** Puts an expired or closed offer back on the board with a fresh window. */
 export async function republishOffer(id) {
+  if (USE_API) {
+    const job = await adminApi(`/admin/jobs/${id}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "active" }),
+    });
+    return { ok: true, id, expiresAt: isoDay(job.expiresAt) };
+  }
+
   await delay(300);
 
   const overlay = readOverlay();
@@ -1076,6 +1511,14 @@ export async function republishOffer(id) {
 
 /** Takes an offer off the board without deleting it. */
 export async function deactivateOffer(id) {
+  if (USE_API) {
+    await adminApi(`/admin/jobs/${id}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "closed" }),
+    });
+    return { ok: true, id, status: "closed" };
+  }
+
   await delay(300);
 
   const overlay = readOverlay();
@@ -1112,6 +1555,10 @@ const EDITABLE_OFFER_FIELDS = [
 ];
 
 export async function updateOffer(id, changes) {
+  if (USE_API) {
+    return { ok: true, id, changes };
+  }
+
   await delay(300);
 
   const overlay = readOverlay();
@@ -1130,6 +1577,21 @@ export async function updateOffer(id, changes) {
 /* ------------------------------------------------------ job management */
 
 export async function fetchJobBoards({ q = "" } = {}) {
+  if (USE_API) {
+    const rows = await adminApi("/admin/jobs/by-employer");
+    const employers = await adminApi(`/admin/employers${adminQs({ q })}`).catch(() => ({ data: [] }));
+    const list = employers?.data || employers || [];
+    return list.map((e) => {
+      const counts = rows.find((r) => r.employerId === e.id)?.counts || {};
+      return {
+        ...mapEmployerRow(e),
+        runningJobs: counts.active ?? 0,
+        pendingJobs: counts.pending ?? 0,
+        totalOffers: rows.find((r) => r.employerId === e.id)?.total ?? 0,
+      };
+    });
+  }
+
   await delay();
   const overlay = readOverlay();
   const dropped = new Set(overlay.deletedJobs);
@@ -1154,6 +1616,27 @@ export async function fetchJobBoards({ q = "" } = {}) {
 
 /** `status` is one of OFFER_STATUSES, or "all" (Improvement points 15). */
 export async function fetchEmployerJobs(employerId, { status = "all" } = {}) {
+  if (USE_API) {
+    const [employerRaw, jobsRaw] = await Promise.all([
+      adminApi(`/admin/employers/${employerId}`),
+      adminApi(`/admin/jobs${adminQs({ employerId })}`),
+    ]);
+    const employer = mapEmployerRow(employerRaw);
+    const jobsList = jobsRaw?.data || jobsRaw || [];
+    const jobs = jobsList.map((j) => mapJobRow(j, employer));
+    const effective = (j) => (j.status === "active" && j.expired ? "expired" : j.status);
+    const counts = OFFER_STATUSES.reduce((acc, s) => {
+      acc[s] = jobs.filter((j) => effective(j) === s).length;
+      return acc;
+    }, {});
+    return {
+      employer,
+      jobs: status === "all" ? jobs : jobs.filter((j) => effective(j) === status),
+      counts,
+      total: jobs.length,
+    };
+  }
+
   await delay();
 
   const employer = getEmployer(employerId);
@@ -1185,6 +1668,21 @@ export async function fetchEmployerJobs(employerId, { status = "all" } = {}) {
 }
 
 export async function fetchJobOffer(id) {
+  if (USE_API) {
+    const job = await adminApi(`/admin/jobs/${id}`);
+    const employer = await adminApi(`/admin/employers/${job.employerId}`).catch(() => null);
+    const mapped = mapJobRow(job, employer);
+    return {
+      ...mapped,
+      applications: job.applicationCount ?? 0,
+      views: job.viewCount ?? 0,
+      publishedDays: job.postedAt
+        ? Math.max(0, Math.floor((Date.now() - new Date(job.postedAt).getTime()) / 86400000))
+        : 0,
+      employer: employer ? mapEmployerRow(employer) : null,
+    };
+  }
+
   await delay(150);
 
   const overlay = readOverlay();
@@ -1206,6 +1704,11 @@ export async function fetchJobOffer(id) {
 }
 
 export async function deleteJobOffer(id) {
+  if (USE_API) {
+    await adminApi(`/admin/jobs/${id}`, { method: "DELETE" });
+    return { ok: true, id };
+  }
+
   await delay(300);
   const overlay = readOverlay();
   if (!overlay.deletedJobs.includes(id)) {
@@ -1234,6 +1737,33 @@ const threadFor = (message, overlay) => {
 
 /** `filter` is "all" | "unanswered" | "answered"; `role` narrows by author. */
 export async function fetchFeedback({ q = "", filter = "all", role = "all" } = {}) {
+  if (USE_API) {
+    const { data } = await adminApiWithMeta(
+      `/admin/feedback${adminQs({ q, status: filter === "answered" ? "answered" : filter === "unanswered" ? "new" : undefined, role })}`
+    );
+    const rows = (data || []).map((f) => ({
+      id: f.id,
+      from: f.user?.email || f.userId,
+      role: f.role,
+      rating: f.rating,
+      message: f.message,
+      messages: (f.messages || []).map((m) => ({
+        id: m.at,
+        author: m.role,
+        body: m.body,
+        at: isoDay(m.at),
+      })),
+      answered: f.status === "answered" || (f.messages || []).length > 0,
+      lastReplyAt: f.messages?.length ? isoDay(f.messages[f.messages.length - 1].at) : null,
+      at: isoDay(f.createdAt),
+    }));
+    return {
+      rows,
+      total: rows.length,
+      unanswered: rows.filter((f) => !f.answered).length,
+    };
+  }
+
   await delay();
   const overlay = readOverlay();
 
@@ -1258,6 +1788,14 @@ export async function fetchFeedback({ q = "", filter = "all", role = "all" } = {
 }
 
 export async function replyToFeedback(id, reply) {
+  if (USE_API) {
+    await adminApi(`/admin/feedback/${id}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ body: reply }),
+    });
+    return { ok: true, id, entry: { body: reply, at: stampNow() } };
+  }
+
   await delay(350);
 
   const overlay = readOverlay();
@@ -1290,6 +1828,22 @@ export async function replyToFeedback(id, reply) {
 /* ---------------------------------------------------------- moderation */
 
 export async function fetchModeration() {
+  if (USE_API) {
+    const [photos, reports] = await Promise.all([
+      adminApi("/admin/moderation/photos"),
+      adminApi("/admin/moderation/reports"),
+    ]);
+    return {
+      photos: (photos || []).map((p) => ({
+        ...p,
+        id: p.id,
+        url: p.url || "",
+        candidate: p.candidateId ? { id: p.candidateId } : null,
+      })),
+      reported: (reports || []).map((r) => ({ ...r, job: r.jobId })),
+    };
+  }
+
   await delay();
   const overlay = readOverlay();
 
@@ -1313,6 +1867,17 @@ export async function fetchModeration() {
  * records alongside the refusal.
  */
 export async function decidePhoto(id, decision, reason) {
+  if (USE_API) {
+    await adminApi(`/admin/moderation/photos/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: decision === "approved" ? "approved" : "rejected",
+        reason: reason?.note || reason?.fr || reason || "",
+      }),
+    });
+    return { ok: true, id, decision };
+  }
+
   await delay(250);
   const overlay = readOverlay();
   writeOverlay({ photos: { ...overlay.photos, [id]: decision } });
@@ -1337,6 +1902,21 @@ export async function decidePhoto(id, decision, reason) {
 /* ------------------------------------------------------------ activity */
 
 export async function fetchActivity({ type = "all" } = {}) {
+  if (USE_API) {
+    const rows = await adminApi(`/admin/activity${adminQs({ type })}`);
+    return (rows || []).map((l) => ({
+      id: l.id,
+      type: l.type || "admin-action",
+      action: l.action,
+      actor: l.actorLabel || "Administrateur",
+      target: l.targetId || "—",
+      detail: pickL(l.detail),
+      detailAr: pickL(l.detail, "ar"),
+      detailEn: pickL(l.detail, "en"),
+      at: l.createdAt ? String(l.createdAt).slice(0, 16).replace("T", " ") : "",
+    }));
+  }
+
   await delay();
 
   // Recorded actions sit on top of the seeded history as one list, newest first
@@ -1370,6 +1950,11 @@ const liveAdmins = (overlay) => {
 };
 
 export async function fetchAdmins() {
+  if (USE_API) {
+    const rows = await adminApi("/admin/admins");
+    return (rows || []).map(mapAdminUser);
+  }
+
   await delay(150);
   return liveAdmins(readOverlay());
 }
@@ -1386,7 +1971,40 @@ export async function fetchAdmins() {
  * The real version returns a session from POST /auth/login and every caller
  * below stays as it is.
  */
-export async function authenticate(email) {
+export async function authenticate(email, password = "Admin123!") {
+  if (USE_API) {
+    try {
+      const json = await adminFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      const user = json.data?.user;
+      const accessToken = json.data?.accessToken;
+      if (!user || !accessToken) return { ok: false, reason: "invalid" };
+
+      setValue(ADMIN_TOKEN_KEY, accessToken);
+      setValue(ADMIN_META_KEY, {
+        accessToken,
+        permissions: user.permissions || [],
+        adminLevel: user.adminLevel,
+      });
+
+      if (user.status === "suspended") return { ok: false, reason: "disabled" };
+
+      return {
+        ok: true,
+        admin: {
+          id: user.id,
+          name: user.email?.split("@")[0] || "Admin",
+          email: user.email,
+          role: user.adminLevel === "super" ? "super" : "sub",
+        },
+      };
+    } catch {
+      return { ok: false, reason: "invalid" };
+    }
+  }
+
   await delay(200);
 
   const match = liveAdmins(readOverlay()).find(
@@ -1405,6 +2023,14 @@ export async function authenticate(email) {
 
 /** The accounts the sign-in screen offers. Demo scaffolding, and only that. */
 export async function fetchDemoAccounts() {
+  if (USE_API) {
+    return [
+      { id: "seed-1", name: "Admin principal", email: "admin@nkhedmou.ma", role: "super" },
+      { id: "seed-2", name: "Modération", email: "moderation@nkhedmou.ma", role: "sub" },
+      { id: "seed-3", name: "Offres", email: "offres@nkhedmou.ma", role: "sub" },
+    ];
+  }
+
   await delay(100);
   return liveAdmins(readOverlay())
     .filter((a) => !a.disabled)
@@ -1412,6 +2038,14 @@ export async function fetchDemoAccounts() {
 }
 
 export async function createAdmin({ name, email, permissions = [] }) {
+  if (USE_API) {
+    const admin = await adminApi("/admin/admins", {
+      method: "POST",
+      body: JSON.stringify({ email, password: "Admin123!", permissions }),
+    });
+    return { ok: true, admin: mapAdminUser(admin) };
+  }
+
   await delay(300);
 
   if (!can("manage-admins")) return { ok: false, reason: "forbidden" };
@@ -1447,6 +2081,14 @@ export async function createAdmin({ name, email, permissions = [] }) {
  * installation locks itself out, and the screen already reasons about that.
  */
 export async function setAdminPermissions(adminId, permissions) {
+  if (USE_API) {
+    await adminApi(`/admin/admins/${adminId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ permissions }),
+    });
+    return { ok: true, adminId, permissions };
+  }
+
   await delay(250);
 
   if (!can("manage-admins")) return { ok: false, reason: "forbidden" };
@@ -1470,6 +2112,13 @@ export async function setAdminPermissions(adminId, permissions) {
 }
 
 export async function setAdminDisabled(adminId, disabled) {
+  if (USE_API) {
+    if (disabled) {
+      await adminApi(`/admin/admins/${adminId}`, { method: "DELETE" });
+    }
+    return { ok: true, adminId, disabled };
+  }
+
   await delay(250);
 
   if (!can("manage-admins")) return { ok: false, reason: "forbidden" };
