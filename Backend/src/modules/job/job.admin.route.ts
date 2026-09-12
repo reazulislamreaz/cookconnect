@@ -6,6 +6,7 @@ import {
   adminDecisionSchema,
   adminExtendSchema,
   adminJobListQuerySchema,
+  adminUpdateJobSchema,
   jobIdParamSchema,
 } from './job.validation';
 
@@ -28,9 +29,27 @@ router.get(
 );
 
 router.patch(
+  '/:id',
+  validateRequest({ params: jobIdParamSchema, body: adminUpdateJobSchema }),
+  jobAdminController.update,
+);
+
+router.patch(
   '/:id/decision',
   validateRequest({ params: jobIdParamSchema, body: adminDecisionSchema }),
   jobAdminController.decision,
+);
+
+router.post(
+  '/:id/close',
+  validateRequest({ params: jobIdParamSchema }),
+  jobAdminController.close,
+);
+
+router.post(
+  '/:id/republish',
+  validateRequest({ params: jobIdParamSchema }),
+  jobAdminController.republish,
 );
 
 router.patch(

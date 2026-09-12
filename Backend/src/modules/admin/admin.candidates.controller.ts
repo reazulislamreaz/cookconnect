@@ -10,8 +10,58 @@ export const list = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const findById = catchAsync(async (req: Request, res: Response) => {
-  const candidate = await candidateService.adminFindById(String(req.params.id));
+  const revealContact = req.query.revealContact === 'true';
+  const candidate = await candidateService.adminFindById(String(req.params.id), {
+    revealContact,
+    viewer: req.user
+      ? {
+          id: req.user.id,
+          role: req.user.role as 'admin',
+          permissions: req.user.permissions,
+          adminLevel: req.user.adminLevel,
+        }
+      : null,
+    ip: req.ip,
+    userAgent: req.get('user-agent') ?? undefined,
+  });
   sendResponse({ res, message: 'Candidate retrieved', data: candidate });
+});
+
+export const update = catchAsync(async (req: Request, res: Response) => {
+  const candidate = await candidateService.adminUpdate(
+    String(req.params.id),
+    req.body,
+    req.user!.id,
+  );
+  sendResponse({ res, message: 'Candidate updated', data: candidate });
+});
+
+export const listApplications = catchAsync(async (req: Request, res: Response) => {
+  const data = await candidateService.adminListApplications(String(req.params.id));
+  sendResponse({ res, message: 'Candidate applications retrieved', data });
+});
+
+export const getHistory = catchAsync(async (req: Request, res: Response) => {
+  const data = await candidateService.adminGetHistory(String(req.params.id));
+  sendResponse({ res, message: 'Candidate history retrieved', data });
+});
+
+export const addSkill = catchAsync(async (req: Request, res: Response) => {
+  const candidate = await candidateService.adminAddSkill(
+    String(req.params.id),
+    req.body.skillId,
+    req.user!.id,
+  );
+  sendResponse({ res, message: 'Skill added', data: candidate });
+});
+
+export const removeSkill = catchAsync(async (req: Request, res: Response) => {
+  const candidate = await candidateService.adminRemoveSkill(
+    String(req.params.id),
+    String(req.params.skillId),
+    req.user!.id,
+  );
+  sendResponse({ res, message: 'Skill removed', data: candidate });
 });
 
 export const setVerification = catchAsync(async (req: Request, res: Response) => {
@@ -23,9 +73,11 @@ export const setVerification = catchAsync(async (req: Request, res: Response) =>
 });
 
 export const setStatus = catchAsync(async (req: Request, res: Response) => {
-  const candidate = await candidateService.setStatus(String(req.params.id), {
-    status: req.body.status,
-  });
+  const candidate = await candidateService.setStatus(
+    String(req.params.id),
+    { status: req.body.status },
+    req.user!.id,
+  );
   sendResponse({ res, message: 'Candidate status updated', data: candidate });
 });
 

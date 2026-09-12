@@ -72,3 +72,13 @@ export type DashboardCounters = {
   savedProfiles: number;
   profileViews: number;
 };
+
+export type EmployerActivityStats = {
+  offersPublished: number;
+  offersActive: number;
+  applicationsReceived: number;
+  profilesViewed: number;
+  contactRequests: number;
+  declaredHires: number;
+  lastActivity: string | null;
+};

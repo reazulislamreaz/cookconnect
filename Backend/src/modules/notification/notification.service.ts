@@ -105,6 +105,48 @@ export async function listEmailOutbox(limit = 100): Promise<INotificationDocumen
   return Notification.find({ emailSentAt: null }).sort({ createdAt: 1 }).limit(limit);
 }
 
+export async function listAdminOutbox(limit = 100): Promise<Record<string, unknown>[]> {
+  const { User } = await import('@/modules/user/user.model');
+
+  const notifications = await Notification.find()
+    .sort({ createdAt: -1 })
+    .limit(Math.min(Math.max(1, limit), 200))
+    .lean();
+
+  const userIds = notifications.map((n: any) => n.userId);
+  const users = userIds.length
+    ? await User.find({ _id: { $in: userIds } })
+        .select('email role')
+        .lean()
+    : [];
+  const userById = new Map<string, { _id: unknown; email?: string }>(
+    users.map((u: any) => [String(u._id), u]),
+  );
+
+  return notifications.map((n: any) => {
+    const user = userById.get(String(n.userId));
+    return {
+      id: String(n._id),
+      type: n.type,
+      title: n.title,
+      body: n.body,
+      data: n.data,
+      read: n.read,
+      readAt: n.readAt,
+      emailSentAt: n.emailSentAt,
+      createdAt: n.createdAt,
+      to: user
+        ? {
+            id: String(user._id),
+            email: user.email,
+            name: user.email?.split('@')[0],
+          }
+        : { id: String(n.userId) },
+      emailQueued: n.emailSentAt == null,
+    };
+  });
+}
+
 export async function markEmailSent(ids: Types.ObjectId[] | string[]): Promise<number> {
   if (ids.length === 0) return 0;
 

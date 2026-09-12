@@ -39,6 +39,7 @@ export type ReplyFeedbackInput = {
 
 export type AdminFeedbackListQuery = {
   status?: FeedbackStatus;
+  role?: string;
   page?: number;
   limit?: number;
 };

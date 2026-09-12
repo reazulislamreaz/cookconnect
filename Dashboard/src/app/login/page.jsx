@@ -24,7 +24,7 @@ export default function LoginPage() {
 
   const [accounts, setAccounts] = useState([]);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("demo");
+  const [password, setPassword] = useState("Admin123!");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,7 +42,7 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
 
-    const admin = await login(email);
+    const admin = await login(email, password);
     if (!admin) {
       setBusy(false);
       setError(t("auth.disabled"));

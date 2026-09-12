@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import { ApiError } from '@/shared/ApiError';
+import { resolveMediaUrl } from '@/shared/enrichMedia';
 import { paginationMeta, QueryBuilder } from '@/shared/QueryBuilder';
+import * as activityLogService from '@/modules/activityLog/activityLog.service';
 import { ModerationReport } from '@/modules/media/moderationReport.model';
 import {
   DEFAULT_CURRENCY,
@@ -14,6 +16,7 @@ import {
 } from './job.lifecycle';
 import {
   AdminDecisionInput,
+  AdminUpdateJobInput,
   CreateJobInput,
   ExtendJobInput,
   GroupedEmployerJobs,
@@ -251,8 +254,68 @@ export async function report(
   return job.save();
 }
 
+async function loadEmployerSummaries(employerIds: Types.ObjectId[]): Promise<
+  Map<string, { id: string; name: string; city: string; logoUrl: string | null }>
+> {
+  if (!employerIds.length) return new Map();
+
+  const { EmployerProfile } = await import('@/modules/employer/employer.model');
+  const employers = await EmployerProfile.find({ _id: { $in: employerIds } })
+    .select('name city logoId')
+    .lean();
+
+  const summaries = await Promise.all(
+    employers.map(async (e: any) => ({
+      id: String(e._id),
+      name: e.name,
+      city: e.city,
+      logoUrl: await resolveMediaUrl(e.logoId),
+    })),
+  );
+
+  return new Map(summaries.map((s) => [s.id, s]));
+}
+
+async function enrichJobsAdmin(jobs: IJobDocument[]): Promise<Record<string, unknown>[]> {
+  const employerIds = [...new Set(jobs.map((j) => String(j.employerId)))].map(
+    (id) => toObjectId(id),
+  );
+  const employerMap = await loadEmployerSummaries(employerIds);
+
+  return jobs.map((job) => {
+    const json = job.toJSON() as unknown as Record<string, unknown>;
+    const employer = employerMap.get(String(job.employerId));
+    if (employer) json.employer = employer;
+    return json;
+  });
+}
+
+async function enrichJobAdmin(job: IJobDocument): Promise<Record<string, unknown>> {
+  const [enriched] = await enrichJobsAdmin([job]);
+  return enriched;
+}
+
+async function logJobAdminAction(
+  adminUserId: string,
+  action: string,
+  job: IJobDocument,
+  detail?: { fr: string; ar?: string; en?: string },
+): Promise<void> {
+  await activityLogService.log({
+    actorUserId: adminUserId,
+    actorLabel: 'Admin',
+    action,
+    targetType: 'job',
+    targetId: String(job._id),
+    detail: detail ?? {
+      fr: job.title?.fr ?? 'Offre',
+      en: job.title?.en ?? job.title?.fr ?? 'Job offer',
+    },
+  });
+}
+
 export async function adminList(query: JobSearchQuery): Promise<{
-  data: IJobDocument[];
+  data: Record<string, unknown>[];
   meta: ReturnType<typeof paginationMeta>;
 }> {
   const filter: JobListFilter = {};
@@ -267,7 +330,8 @@ export async function adminList(query: JobSearchQuery): Promise<{
     .sort('-createdAt')
     .paginate(SEARCH_PAGE_SIZE);
 
-  const [data, total] = await Promise.all([builder.query.exec(), Job.countDocuments(filter)]);
+  const [jobs, total] = await Promise.all([builder.query.exec(), Job.countDocuments(filter)]);
+  const data = await enrichJobsAdmin(jobs);
 
   return { data, meta: paginationMeta(page, limit, total) };
 }
@@ -301,16 +365,27 @@ export async function adminListByEmployer(): Promise<
   }));
 }
 
-export async function adminFindById(id: string): Promise<IJobDocument> {
+export async function adminFindById(id: string): Promise<Record<string, unknown>> {
   const job = await findById(id);
   if (!job) throw new ApiError(404, 'Job not found');
-  return job;
+  return enrichJobAdmin(job);
 }
 
-export async function adminDecision(id: string, input: AdminDecisionInput): Promise<IJobDocument> {
-  const job = await adminFindById(id);
+export async function adminDecision(id: string, input: AdminDecisionInput): Promise<Record<string, unknown>> {
+  const job = await Job.findById(id);
+  if (!job) throw new ApiError(404, 'Job not found');
 
   if (input.status === 'active') {
+    if (job.status === 'expired') {
+      job.status = assertTransition(job.status, 'republish');
+      job.republishedAt = new Date();
+      job.postedAt = null;
+      job.expiresAt = null;
+      job.extendedUntil = null;
+      job.approvedBy = null;
+      job.approvedAt = null;
+      job.rejectionReason = null;
+    }
     job.status = assertTransition(job.status, 'approve');
     const now = new Date();
     job.postedAt = now;
@@ -318,6 +393,12 @@ export async function adminDecision(id: string, input: AdminDecisionInput): Prom
     job.approvedBy = toObjectId(input.adminUserId);
     job.approvedAt = now;
     job.rejectionReason = null;
+    await job.save();
+    await logJobAdminAction(input.adminUserId, 'job.approved', job);
+  } else if (input.status === 'closed') {
+    job.status = assertTransition(job.status, 'close');
+    await job.save();
+    await logJobAdminAction(input.adminUserId, 'job.closed', job);
   } else {
     job.status = assertTransition(job.status, 'reject');
     if (!input.rejectionReason?.trim()) {
@@ -326,13 +407,71 @@ export async function adminDecision(id: string, input: AdminDecisionInput): Prom
     job.rejectionReason = input.rejectionReason.trim();
     job.approvedBy = null;
     job.approvedAt = null;
+    await job.save();
+    await logJobAdminAction(input.adminUserId, 'job.rejected', job);
   }
 
-  return job.save();
+  return enrichJobAdmin(job);
 }
 
-export async function adminExtend(id: string, input: ExtendJobInput): Promise<IJobDocument> {
-  const job = await adminFindById(id);
+export async function adminUpdate(
+  id: string,
+  input: AdminUpdateJobInput,
+): Promise<Record<string, unknown>> {
+  const job = await Job.findById(id);
+  if (!job) throw new ApiError(404, 'Job not found');
+
+  if (input.title) job.title = input.title;
+  if (input.description) job.description = input.description;
+  if (input.salaryMin !== undefined) job.salaryMin = input.salaryMin;
+  if (input.salaryMax !== undefined) job.salaryMax = input.salaryMax;
+  if (input.city) job.city = input.city;
+  if (input.requirements) job.requirements = input.requirements;
+  if (input.benefits) job.benefits = input.benefits;
+
+  await job.save();
+  await logJobAdminAction(input.adminUserId, 'job.updated', job);
+
+  return enrichJobAdmin(job);
+}
+
+export async function adminClose(id: string, adminUserId: string): Promise<Record<string, unknown>> {
+  const job = await Job.findById(id);
+  if (!job) throw new ApiError(404, 'Job not found');
+
+  job.status = assertTransition(job.status, 'close');
+  await job.save();
+  await logJobAdminAction(adminUserId, 'job.closed', job);
+
+  return enrichJobAdmin(job);
+}
+
+export async function adminRepublish(
+  id: string,
+  adminUserId: string,
+): Promise<Record<string, unknown>> {
+  const job = await Job.findById(id);
+  if (!job) throw new ApiError(404, 'Job not found');
+
+  job.status = assertTransition(job.status, 'republish');
+  job.republishedAt = new Date();
+  job.postedAt = null;
+  job.expiresAt = null;
+  job.extendedUntil = null;
+  job.approvedBy = null;
+  job.approvedAt = null;
+  job.rejectionReason = null;
+
+  await job.save();
+  await logJobAdminAction(adminUserId, 'job.republished', job);
+
+  return enrichJobAdmin(job);
+}
+
+export async function adminExtend(id: string, input: ExtendJobInput): Promise<Record<string, unknown>> {
+  const job = await Job.findById(id);
+  if (!job) throw new ApiError(404, 'Job not found');
+
   if (job.status !== 'active' && job.status !== 'expired') {
     throw new ApiError(409, 'Only active or expired offers can be extended');
   }
@@ -342,11 +481,15 @@ export async function adminExtend(id: string, input: ExtendJobInput): Promise<IJ
     if (!job.postedAt) job.postedAt = new Date();
     if (!job.expiresAt) job.expiresAt = addDays(job.postedAt, OFFER_DURATION_DAYS);
   }
-  return job.save();
+  await job.save();
+  await logJobAdminAction(input.adminUserId, 'job.extended', job);
+
+  return enrichJobAdmin(job);
 }
 
 export async function adminDelete(id: string): Promise<IJobDocument> {
-  const job = await adminFindById(id);
+  const job = await Job.findById(id);
+  if (!job) throw new ApiError(404, 'Job not found');
   return job.softDelete();
 }
 

@@ -9,8 +9,13 @@ export const list = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const findById = catchAsync(async (req: Request, res: Response) => {
-  const employer = await employerService.adminFindById(String(req.params.id));
+  const employer = await employerService.adminFindByIdEnriched(String(req.params.id));
   sendResponse({ res, message: 'Employer retrieved', data: employer });
+});
+
+export const getActivity = catchAsync(async (req: Request, res: Response) => {
+  const activity = await employerService.getActivity(String(req.params.id));
+  sendResponse({ res, message: 'Employer activity retrieved', data: activity });
 });
 
 export const requests = catchAsync(async (_req: Request, res: Response) => {
@@ -32,6 +37,7 @@ export const block = catchAsync(async (req: Request, res: Response) => {
     String(req.params.id),
     req.body.blocked,
     req.body.reason,
+    req.user!.id,
   );
   sendResponse({ res, message: 'Employer block status updated', data: employer });
 });

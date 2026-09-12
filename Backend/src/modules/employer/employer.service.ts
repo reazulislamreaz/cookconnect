@@ -2,14 +2,18 @@ import path from 'path';
 import { Types } from 'mongoose';
 import type { FilterQuery } from '@/types/mongoose';
 import { ApiError } from '@/shared/ApiError';
+import { resolveMediaUrl } from '@/shared/enrichMedia';
 import { paginationMeta, QueryBuilder } from '@/shared/QueryBuilder';
+import * as activityLogService from '@/modules/activityLog/activityLog.service';
 import * as mediaService from '@/modules/media/media.service';
+import { User } from '@/modules/user/user.model';
 import { SEARCH_PAGE_SIZE } from '@/modules/job/job.constant';
 import { getStorage } from '@/utils/storage';
 import { validateImageBuffer, validateImageMime } from '@/middlewares/upload';
 import {
   AdminEmployerListQuery,
   DashboardCounters,
+  EmployerActivityStats,
   EmployerDecisionInput,
   IEmployerProfileDocument,
   UpdateEmployerInput,
@@ -96,6 +100,10 @@ export async function getPublic(id: string): Promise<Record<string, unknown> | n
   if (!profile.phonePublic) {
     delete json.phone;
   }
+
+  const { resolveMediaUrl } = await import('@/shared/enrichMedia');
+  json.logoUrl = await resolveMediaUrl(profile.logoId);
+  json.coverUrl = await resolveMediaUrl(profile.coverId);
 
   return json;
 }
@@ -195,8 +203,126 @@ export async function uploadCover(
   return uploadBrandImage(userId, file, 'cover');
 }
 
+async function enrichEmployerAdmin(
+  profile: IEmployerProfileDocument,
+): Promise<Record<string, unknown>> {
+  const json = profile.toJSON() as unknown as Record<string, unknown>;
+  const user = await User.findById(profile.userId).select('email status').lean();
+
+  if (user) {
+    json.user = {
+      id: String((user as any)._id),
+      email: (user as any).email,
+      status: (user as any).status,
+    };
+  }
+
+  json.logoUrl = await resolveMediaUrl(profile.logoId);
+  json.coverUrl = await resolveMediaUrl(profile.coverId);
+
+  return json;
+}
+
+async function enrichEmployersAdmin(
+  profiles: IEmployerProfileDocument[],
+): Promise<Record<string, unknown>[]> {
+  const userIds = profiles.map((p) => p.userId);
+  const users = userIds.length
+    ? await User.find({ _id: { $in: userIds } })
+        .select('email status')
+        .lean()
+    : [];
+  const userById = new Map(
+    users.map((u: any) => [
+      String(u._id),
+      { id: String(u._id), email: u.email, status: u.status },
+    ]),
+  );
+
+  const logoIds = profiles.map((p) => p.logoId).filter(Boolean) as Types.ObjectId[];
+  const coverIds = profiles.map((p) => p.coverId).filter(Boolean) as Types.ObjectId[];
+  const mediaIds = [...logoIds, ...coverIds];
+
+  const { MediaAsset } = await import('@/modules/media/media.model');
+  const assets = mediaIds.length
+    ? await MediaAsset.find({ _id: { $in: mediaIds } })
+        .select('url')
+        .lean()
+    : [];
+  const urlById = new Map(assets.map((a: any) => [String(a._id), a.url]));
+
+  return profiles.map((profile) => {
+    const json = profile.toJSON() as unknown as Record<string, unknown>;
+    const user = userById.get(String(profile.userId));
+    if (user) json.user = user;
+    json.logoUrl = profile.logoId ? urlById.get(String(profile.logoId)) ?? null : null;
+    json.coverUrl = profile.coverId ? urlById.get(String(profile.coverId)) ?? null : null;
+    return json;
+  });
+}
+
+async function logEmployerAdminAction(
+  adminUserId: string,
+  action: string,
+  profile: IEmployerProfileDocument,
+  detail?: { fr: string; ar?: string; en?: string },
+): Promise<void> {
+  await activityLogService.log({
+    actorUserId: adminUserId,
+    actorLabel: 'Admin',
+    action,
+    targetType: 'employer',
+    targetId: String(profile._id),
+    detail: detail ?? {
+      fr: profile.name,
+      en: profile.name,
+    },
+  });
+}
+
+export async function getActivity(employerId: string): Promise<EmployerActivityStats> {
+  const profile = await adminFindById(employerId);
+  const employerObjectId = profile._id;
+
+  const { Job } = await import('@/modules/job/job.model');
+  const { Application } = await import('@/modules/application/application.model');
+  const { ActivityLog } = await import('@/modules/activityLog/activityLog.model');
+  const { ProfileView } = await import('@/modules/analytics/profileViews.model');
+
+  const [jobs, applicationsReceived, declaredHires, contactRequests, profileViewCount] =
+    await Promise.all([
+      Job.find({ employerId: employerObjectId, deletedAt: null }).lean(),
+      Application.countDocuments({ employerId: employerObjectId }),
+      Application.countDocuments({ employerId: employerObjectId, status: 'hired' }),
+      ActivityLog.countDocuments({
+        action: 'contact.viewed',
+        actorUserId: profile.userId,
+      }),
+      ProfileView.countDocuments({ viewerUserId: profile.userId }),
+    ]);
+
+  const offersPublished = jobs.length;
+  const offersActive = jobs.filter((j: any) => j.status === 'active').length;
+
+  const lastJobUpdate = jobs.reduce((max: Date | null, j: any) => {
+    const updated = j.updatedAt ? new Date(j.updatedAt) : null;
+    if (!updated) return max;
+    return !max || updated > max ? updated : max;
+  }, null);
+
+  return {
+    offersPublished,
+    offersActive,
+    applicationsReceived,
+    profilesViewed: profileViewCount,
+    contactRequests,
+    declaredHires,
+    lastActivity: lastJobUpdate ? lastJobUpdate.toISOString().slice(0, 10) : null,
+  };
+}
+
 export async function adminList(query: AdminEmployerListQuery): Promise<{
-  data: IEmployerProfileDocument[];
+  data: Record<string, unknown>[];
   meta: ReturnType<typeof paginationMeta>;
 }> {
   const filter: FilterQuery<IEmployerProfileDocument> = {};
@@ -214,16 +340,19 @@ export async function adminList(query: AdminEmployerListQuery): Promise<{
 
   builder.sort('-createdAt').paginate(SEARCH_PAGE_SIZE);
 
-  const [data, total] = await Promise.all([
+  const [profiles, total] = await Promise.all([
     builder.query.exec(),
     EmployerProfile.countDocuments(filter),
   ]);
 
+  const data = await enrichEmployersAdmin(profiles);
+
   return { data, meta: paginationMeta(page, limit, total) };
 }
 
-export async function adminRequests(): Promise<IEmployerProfileDocument[]> {
-  return EmployerProfile.find({ status: 'pending' }).sort({ createdAt: -1 });
+export async function adminRequests(): Promise<Record<string, unknown>[]> {
+  const profiles = await EmployerProfile.find({ status: 'pending' }).sort({ createdAt: -1 });
+  return enrichEmployersAdmin(profiles);
 }
 
 export async function adminFindById(id: string): Promise<IEmployerProfileDocument> {
@@ -234,10 +363,15 @@ export async function adminFindById(id: string): Promise<IEmployerProfileDocumen
   return profile;
 }
 
+export async function adminFindByIdEnriched(id: string): Promise<Record<string, unknown>> {
+  const profile = await adminFindById(id);
+  return enrichEmployerAdmin(profile);
+}
+
 export async function adminDecision(
   id: string,
   input: EmployerDecisionInput,
-): Promise<IEmployerProfileDocument> {
+): Promise<Record<string, unknown>> {
   const profile = await adminFindById(id);
 
   if (input.status === 'active') {
@@ -257,14 +391,22 @@ export async function adminDecision(
     profile.rejectionReason = input.rejectionReason.trim();
   }
 
-  return profile.save();
+  await profile.save();
+  await logEmployerAdminAction(
+    input.adminUserId,
+    input.status === 'active' ? 'employer.approved' : 'employer.rejected',
+    profile,
+  );
+
+  return enrichEmployerAdmin(profile);
 }
 
 export async function adminBlock(
   id: string,
   blocked: boolean,
   reason?: string,
-): Promise<IEmployerProfileDocument> {
+  adminUserId?: string,
+): Promise<Record<string, unknown>> {
   const profile = await adminFindById(id);
   profile.status = blocked ? 'blocked' : 'active';
   if (blocked && reason?.trim()) {
@@ -273,5 +415,16 @@ export async function adminBlock(
   if (!blocked) {
     profile.rejectionReason = null;
   }
-  return profile.save();
+  await profile.save();
+
+  if (adminUserId) {
+    await logEmployerAdminAction(
+      adminUserId,
+      blocked ? 'employer.blocked' : 'employer.unblocked',
+      profile,
+      reason ? { fr: reason, en: reason } : undefined,
+    );
+  }
+
+  return enrichEmployerAdmin(profile);
 }

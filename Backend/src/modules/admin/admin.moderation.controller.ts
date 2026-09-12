@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { catchAsync } from '@/shared/catchAsync';
 import { sendResponse } from '@/shared/sendResponse';
+import * as activityLogService from '@/modules/activityLog/activityLog.service';
 import * as mediaService from '@/modules/media/media.service';
 
 export const listPhotos = catchAsync(async (req: Request, res: Response) => {
@@ -23,6 +24,25 @@ export const decidePhoto = catchAsync(async (req: Request, res: Response) => {
     reason: req.body.reason,
     reviewedBy: req.user!.id,
   });
+
+  await activityLogService.log({
+    actorUserId: req.user!.id,
+    actorLabel: 'Admin',
+    action: req.body.status === 'approved' ? 'photo.approved' : 'photo.rejected',
+    targetType: 'media',
+    targetId: String(asset._id),
+    detail: {
+      fr:
+        req.body.status === 'approved'
+          ? 'Photo approuvée'
+          : `Photo refusée${req.body.reason ? ` : ${req.body.reason}` : ''}`,
+      en:
+        req.body.status === 'approved'
+          ? 'Photo approved'
+          : `Photo rejected${req.body.reason ? `: ${req.body.reason}` : ''}`,
+    },
+  });
+
   sendResponse({ res, message: 'Moderation decision recorded', data: asset });
 });
 

@@ -10,6 +10,8 @@ import {
   IFeedbackDocument,
   ReplyFeedbackInput,
 } from './feedback.interface';
+import { User } from '@/modules/user/user.model';
+import * as activityLogService from '@/modules/activityLog/activityLog.service';
 import { Feedback } from './feedback.model';
 
 function toObjectId(value: Types.ObjectId | string): Types.ObjectId {
@@ -28,11 +30,12 @@ export async function create(input: CreateFeedbackInput): Promise<IFeedbackDocum
 }
 
 export async function listAdmin(query: AdminFeedbackListQuery = {}): Promise<{
-  data: IFeedbackDocument[];
+  data: Record<string, unknown>[];
   meta: ReturnType<typeof paginationMeta>;
 }> {
   const filter: FilterQuery<IFeedbackDocument> = {};
   if (query.status) filter.status = query.status;
+  if (query.role && query.role !== 'all') filter.role = query.role as IFeedbackDocument['role'];
 
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(Math.max(1, Number(query.limit) || DEFAULT_FEEDBACK_LIMIT), 100);
@@ -41,10 +44,26 @@ export async function listAdmin(query: AdminFeedbackListQuery = {}): Promise<{
   const builder = new QueryBuilder<IFeedbackDocument>(modelQuery, query);
   builder.sort('-createdAt').paginate(DEFAULT_FEEDBACK_LIMIT);
 
-  const [data, total] = await Promise.all([
+  const [items, total] = await Promise.all([
     builder.query.exec(),
     Feedback.countDocuments(filter),
   ]);
+
+  const userIds = items.map((f: IFeedbackDocument) => f.userId);
+  const users = userIds.length
+    ? await User.find({ _id: { $in: userIds } })
+        .select('email')
+        .lean()
+    : [];
+  const emailByUserId = new Map(users.map((u: any) => [String(u._id), u.email]));
+
+  const data = items.map((feedback: IFeedbackDocument) => {
+    const json = feedback.toJSON() as unknown as Record<string, unknown>;
+    const email = emailByUserId.get(String(feedback.userId)) ?? '';
+    json.from = email;
+    json.user = { email };
+    return json;
+  });
 
   return { data, meta: paginationMeta(page, limit, total) };
 }
@@ -71,6 +90,18 @@ export async function reply(
   });
   feedback.status = 'answered';
   await feedback.save();
+
+  await activityLogService.log({
+    actorUserId: input.adminUserId,
+    actorLabel: 'Admin',
+    action: 'feedback.replied',
+    targetType: 'feedback',
+    targetId: String(feedback._id),
+    detail: {
+      fr: 'Réponse envoyée au retour utilisateur',
+      en: 'Reply sent to user feedback',
+    },
+  });
 
   await notificationService.notifyUser(
     String(feedback.userId),

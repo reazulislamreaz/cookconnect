@@ -51,8 +51,8 @@ export function AdminSessionProvider({ children }) {
    * pointing it at a real POST /auth/login is a one-function change here and
    * nothing on the sign-in screen moves.
    */
-  const login = useCallback(async (email) => {
-    const res = await authenticate(email);
+  const login = useCallback(async (email, password) => {
+    const res = await authenticate(email, password);
     if (!res.ok) return null;
 
     const admin = res.admin

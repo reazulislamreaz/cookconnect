@@ -63,8 +63,19 @@ export type UpdateJobInput = Partial<
 };
 
 export type AdminDecisionInput = {
-  status: 'active' | 'rejected';
+  status: 'active' | 'rejected' | 'closed';
   rejectionReason?: string;
+  adminUserId: string;
+};
+
+export type AdminUpdateJobInput = {
+  title?: LocalizedString;
+  description?: LocalizedString;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  city?: string;
+  requirements?: string[];
+  benefits?: string[];
   adminUserId: string;
 };
 

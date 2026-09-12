@@ -1,5 +1,6 @@
 import { ApiError } from '@/shared/ApiError';
 import { hashPassword } from '@/utils/crypto';
+import * as activityLogService from '@/modules/activityLog/activityLog.service';
 import * as userService from '@/modules/user/user.service';
 import {
   ALL_ADMIN_PERMISSIONS,
@@ -30,7 +31,7 @@ export async function createAdmin(input: {
 
   const passwordHash = await hashPassword(input.password);
 
-  return User.create({
+  const admin = await User.create({
     email: input.email.toLowerCase().trim(),
     passwordHash,
     role: 'admin',
@@ -39,6 +40,35 @@ export async function createAdmin(input: {
     adminLevel: 'sub',
     permissions: sanitizePermissions(input.permissions),
   });
+
+  await activityLogService.log({
+    actorLabel: 'Admin',
+    action: 'admin.created',
+    targetType: 'admin',
+    targetId: String(admin._id),
+    detail: {
+      fr: `Compte admin créé : ${admin.email}`,
+      en: `Admin account created: ${admin.email}`,
+    },
+  });
+
+  return admin;
+}
+
+export async function updateAdmin(
+  targetId: string,
+  input: { permissions?: string[]; status?: 'active' | 'suspended' },
+  actor: { id: string; adminLevel?: 'super' | 'sub' | null; permissions: string[] },
+): Promise<IUserDocument> {
+  if (input.permissions !== undefined) {
+    return updatePermissions(targetId, input.permissions, actor);
+  }
+
+  if (input.status === 'active') {
+    return enableAdmin(targetId, actor.id);
+  }
+
+  throw new ApiError(422, 'No valid update fields provided');
 }
 
 export async function updatePermissions(
@@ -71,10 +101,54 @@ export async function updatePermissions(
   }
 
   target.permissions = next;
-  return target.save();
+  const saved = await target.save();
+
+  await activityLogService.log({
+    actorUserId: actor.id,
+    actorLabel: 'Admin',
+    action: 'admin.permissionsChanged',
+    targetType: 'admin',
+    targetId: String(saved._id),
+    detail: {
+      fr: `Permissions mises à jour pour ${saved.email}`,
+      en: `Permissions updated for ${saved.email}`,
+    },
+  });
+
+  return saved;
 }
 
-export async function disableAdmin(id: string): Promise<IUserDocument> {
+export async function enableAdmin(id: string, actorUserId?: string): Promise<IUserDocument> {
+  const admin = await User.findById(id);
+  if (!admin || admin.role !== 'admin') {
+    throw new ApiError(404, 'Admin account not found');
+  }
+
+  if (admin.adminLevel === 'super') {
+    throw new ApiError(403, 'Super admin status cannot be modified this way');
+  }
+
+  admin.status = 'active';
+  const saved = await admin.save();
+
+  if (actorUserId) {
+    await activityLogService.log({
+      actorUserId,
+      actorLabel: 'Admin',
+      action: 'admin.enabled',
+      targetType: 'admin',
+      targetId: String(saved._id),
+      detail: {
+        fr: `Compte admin réactivé : ${saved.email}`,
+        en: `Admin account re-enabled: ${saved.email}`,
+      },
+    });
+  }
+
+  return saved;
+}
+
+export async function disableAdmin(id: string, actorUserId?: string): Promise<IUserDocument> {
   const admin = await User.findById(id);
   if (!admin || admin.role !== 'admin') {
     throw new ApiError(404, 'Admin account not found');
@@ -85,7 +159,23 @@ export async function disableAdmin(id: string): Promise<IUserDocument> {
   }
 
   admin.status = 'suspended';
-  return admin.save();
+  const saved = await admin.save();
+
+  if (actorUserId) {
+    await activityLogService.log({
+      actorUserId,
+      actorLabel: 'Admin',
+      action: 'admin.disabled',
+      targetType: 'admin',
+      targetId: String(saved._id),
+      detail: {
+        fr: `Compte admin désactivé : ${saved.email}`,
+        en: `Admin account disabled: ${saved.email}`,
+      },
+    });
+  }
+
+  return saved;
 }
 
 export async function findAdminById(id: string): Promise<IUserDocument> {

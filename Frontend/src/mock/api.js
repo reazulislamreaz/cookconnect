@@ -86,6 +86,16 @@ function pickLocalized(obj, field = "fr") {
   return obj[field] || obj.fr || obj.en || "";
 }
 
+async function hydrateCandidate(id) {
+  if (!id) return null;
+  try {
+    const raw = await api(`/candidates/${id}`);
+    return mapCandidate(raw);
+  } catch {
+    return null;
+  }
+}
+
 function mapCandidate(raw) {
   if (!raw) return null;
   const pos = positionById(raw.positionId);
@@ -95,7 +105,7 @@ function mapCandidate(raw) {
     ...raw,
     id: raw.id || raw._id,
     name,
-    photo: raw.photo || raw.photoUrl || PLACEHOLDER_PHOTO,
+    photo: raw.photoUrl || raw.photo || PLACEHOLDER_PHOTO,
     title: raw.title || pos?.fr || raw.positionId || "",
     titleAr: raw.titleAr || pos?.ar || "",
     titleEn: raw.titleEn || pos?.en || "",
@@ -123,8 +133,8 @@ async function getEmployerCached(id) {
     const mapped = {
       ...raw,
       id: raw.id,
-      logo: raw.logo || raw.logoUrl || PLACEHOLDER_LOGO,
-      cover: raw.cover || raw.coverUrl || PLACEHOLDER_LOGO,
+      logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
+      cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
       about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
       email: raw.email || "",
     };
@@ -379,8 +389,8 @@ export async function fetchCurrentEmployer() {
       return {
         ...raw,
         id: raw.id,
-        logo: raw.logo || raw.logoUrl || PLACEHOLDER_LOGO,
-        cover: raw.cover || raw.coverUrl || PLACEHOLDER_LOGO,
+        logo: raw.logoUrl || raw.logo || PLACEHOLDER_LOGO,
+        cover: raw.coverUrl || raw.cover || PLACEHOLDER_LOGO,
         about: typeof raw.about === "string" ? raw.about : pickLocalized(raw.about, "fr"),
       };
     } catch {
@@ -431,28 +441,35 @@ export async function fetchEmployerCandidates(employerId = CURRENT_EMPLOYER_ID) 
 
     const applicants = await Promise.all(
       (applicantsRaw || []).map(async (a) => {
-        const candidate = mapCandidate(a.candidateId || a.candidate);
+        const candRaw = a.candidateId && typeof a.candidateId === "object" ? a.candidateId : null;
+        const candidateId = candRaw?.id || candRaw?._id || a.candidateId;
+        const candidate = candRaw
+          ? mapCandidate(candRaw)
+          : await hydrateCandidate(String(candidateId));
         return {
           ...a,
           id: a.id,
-          candidateId: candidate?.id || a.candidateId,
+          candidateId: candidate?.id || candidateId,
           employerId,
           candidate,
           source: "applied",
+          appliedAt: a.appliedAt ? String(a.appliedAt).slice(0, 10) : a.appliedAt,
         };
       })
     );
 
     const saved = await Promise.all(
       (savedRaw || []).map(async (s) => {
-        const candidate = mapCandidate(s.target || s.candidate);
+        const targetId = s.targetId || s.target?.id || s.target;
+        const candidate = await hydrateCandidate(String(targetId));
         return {
           ...s,
           id: s.id,
-          candidateId: candidate?.id || s.targetId,
+          candidateId: candidate?.id || targetId,
           employerId,
           candidate,
           source: "saved",
+          savedAt: s.createdAt ? String(s.createdAt).slice(0, 10) : s.savedAt,
         };
       })
     );

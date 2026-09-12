@@ -22,6 +22,12 @@ router.get(
 router.get('/requests', adminEmployersController.requests);
 
 router.get(
+  '/:id/activity',
+  validateRequest({ params: employerIdParamSchema }),
+  adminEmployersController.getActivity,
+);
+
+router.get(
   '/:id',
   validateRequest({ params: employerIdParamSchema }),
   adminEmployersController.findById,

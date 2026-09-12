@@ -111,4 +111,39 @@ export type AdminCandidateListQuery = {
   q?: string;
   page?: number;
   limit?: number;
+  status?: string;
+  sectorId?: string;
+  sector?: string;
+  positionId?: string;
+  position?: string;
+  city?: string;
+  experience?: ExperienceLevel;
+  availability?: Availability;
+  minCompletion?: number;
+};
+
+export type AdminUpdateCandidateInput = Partial<
+  Pick<
+    ICandidateProfile,
+    | 'firstName'
+    | 'lastName'
+    | 'phone'
+    | 'city'
+    | 'sectorId'
+    | 'positionId'
+    | 'experience'
+    | 'availability'
+    | 'contractType'
+    | 'expectedSalary'
+    | 'about'
+    | 'skills'
+    | 'languages'
+  >
+>;
+
+export type AdminFindCandidateOptions = {
+  revealContact?: boolean;
+  viewer?: CandidateViewer;
+  ip?: string;
+  userAgent?: string;
 };

@@ -60,8 +60,18 @@ export const adminJobListQuerySchema = z.object({
 });
 
 export const adminDecisionSchema = z.object({
-  status: z.enum(['active', 'rejected']),
+  status: z.enum(['active', 'rejected', 'closed']),
   rejectionReason: z.string().trim().optional(),
+});
+
+export const adminUpdateJobSchema = z.object({
+  title: localizedStringSchema.optional(),
+  description: localizedStringSchema.optional(),
+  salaryMin: z.number().int().nonnegative().nullable().optional(),
+  salaryMax: z.number().int().nonnegative().nullable().optional(),
+  city: z.string().trim().optional(),
+  requirements: z.array(z.string()).optional(),
+  benefits: z.array(z.string()).optional(),
 });
 
 export const adminExtendSchema = z.object({

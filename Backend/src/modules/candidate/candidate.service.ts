@@ -2,10 +2,17 @@ import path from 'path';
 import { Types } from 'mongoose';
 import type { FilterQuery } from '@/types/mongoose';
 import { ApiError } from '@/shared/ApiError';
+import {
+  resolveMediaUrl,
+  resolveMediaWithModeration,
+} from '@/shared/enrichMedia';
 import { paginationMeta, QueryBuilder } from '@/shared/QueryBuilder';
+import * as activityLogService from '@/modules/activityLog/activityLog.service';
 import * as mediaService from '@/modules/media/media.service';
+import { MediaAsset } from '@/modules/media/media.model';
 import * as taxonomyService from '@/modules/taxonomy/taxonomy.service';
 import * as userService from '@/modules/user/user.service';
+import { User } from '@/modules/user/user.model';
 import { getStorage } from '@/utils/storage';
 import {
   validateCvBuffer,
@@ -18,6 +25,8 @@ import {
 } from './candidate.constant';
 import {
   AdminCandidateListQuery,
+  AdminFindCandidateOptions,
+  AdminUpdateCandidateInput,
   CandidateSearchQuery,
   CandidateViewer,
   ICandidateProfileDocument,
@@ -106,7 +115,7 @@ export async function updateMe(
 export async function search(
   query: CandidateSearchQuery,
   isGuest: boolean,
-): Promise<{ data: ICandidateProfileDocument[]; meta: ReturnType<typeof paginationMeta> }> {
+): Promise<{ data: Record<string, unknown>[]; meta: ReturnType<typeof paginationMeta> }> {
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(Math.max(1, Number(query.limit) || SEARCH_PAGE_SIZE), 100);
 
@@ -134,10 +143,20 @@ export async function search(
 
   builder.sort('-createdAt').paginate(SEARCH_PAGE_SIZE);
 
-  const [data, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     builder.query.exec(),
     CandidateProfile.countDocuments(baseFilter),
   ]);
+
+  const { resolveMediaUrl } = await import('@/shared/enrichMedia');
+  const data = await Promise.all(
+    rows.map(async (profile: ICandidateProfileDocument) => {
+      const json = profile.toJSON() as unknown as Record<string, unknown>;
+      delete json.phone;
+      json.photoUrl = await resolveMediaUrl(profile.photoId);
+      return json;
+    }),
+  );
 
   return {
     data,
@@ -173,34 +192,167 @@ async function logContactView(
 ): Promise<void> {
   if (!viewer) return;
 
-  try {
-    const activityLogService = await import('../activityLog/activityLog.service');
-    let actorLabel = 'User';
+  let actorLabel = 'User';
 
-    if (viewer.role === 'employer') {
-      const { EmployerProfile } = await import('../employer/employer.model');
-      const employer = await EmployerProfile.findOne({ userId: toObjectId(viewer.id) });
-      actorLabel = employer?.name || 'Employer';
-    } else if (viewer.role === 'admin') {
-      actorLabel = 'Admin';
+  if (viewer.role === 'employer') {
+    const { EmployerProfile } = await import('../employer/employer.model');
+    const employer = await EmployerProfile.findOne({ userId: toObjectId(viewer.id) });
+    actorLabel = employer?.name || 'Employer';
+  } else if (viewer.role === 'admin') {
+    actorLabel = 'Admin';
+  }
+
+  await activityLogService.log({
+    actorUserId: viewer.id,
+    actorLabel,
+    action: 'contact.viewed',
+    targetType: 'candidate',
+    targetId: String(profile._id),
+    detail: {
+      fr: `Consultation du contact de ${profile.firstName} ${profile.lastName}`,
+      en: `Viewed contact for ${profile.firstName} ${profile.lastName}`,
+    },
+    ip: meta?.ip,
+    userAgent: meta?.userAgent,
+  });
+}
+
+async function logAdminCandidateAction(
+  adminUserId: string,
+  action: string,
+  profile: ICandidateProfileDocument,
+  detail?: { fr: string; ar?: string; en?: string },
+): Promise<void> {
+  await activityLogService.log({
+    actorUserId: adminUserId,
+    actorLabel: 'Admin',
+    action,
+    targetType: 'candidate',
+    targetId: String(profile._id),
+    detail: detail ?? {
+      fr: `${profile.firstName} ${profile.lastName}`,
+      en: `${profile.firstName} ${profile.lastName}`,
+    },
+  });
+}
+
+type UserSummary = {
+  id: string;
+  email: string;
+  status: string;
+  lastLoginAt?: Date | null;
+};
+
+async function loadUserSummaries(userIds: Types.ObjectId[]): Promise<Map<string, UserSummary>> {
+  if (!userIds.length) return new Map();
+
+  const users = await User.find({ _id: { $in: userIds } })
+    .select('email status lastLoginAt')
+    .lean();
+
+  return new Map(
+    users.map((u: any) => [
+      String(u._id),
+      {
+        id: String(u._id),
+        email: u.email,
+        status: u.status,
+        lastLoginAt: u.lastLoginAt ?? null,
+      },
+    ]),
+  );
+}
+
+async function enrichCandidateAdmin(
+  profile: ICandidateProfileDocument,
+  userSummary?: UserSummary | null,
+  options?: { includeContact?: boolean },
+): Promise<Record<string, unknown>> {
+  const json = profile.toJSON() as unknown as Record<string, unknown>;
+  const userId = String(profile.userId);
+
+  const user =
+    userSummary ??
+    (await User.findById(userId).select('email status lastLoginAt').lean()) ??
+    null;
+
+  if (user) {
+    json.user = {
+      id: String((user as any)._id ?? userId),
+      email: (user as any).email,
+      status: (user as any).status,
+      lastLoginAt: (user as any).lastLoginAt ?? null,
+    };
+  }
+
+  json.photoUrl = await resolveMediaUrl(profile.photoId);
+  json.dishPhotos = await resolveMediaWithModeration(profile.foodPhotoIds);
+
+  const pendingPhotos = await MediaAsset.find({
+    ownerUserId: toObjectId(userId),
+    moderationStatus: 'pending',
+    deletedAt: null,
+  })
+    .select('url moderationStatus kind')
+    .lean();
+
+  json.pendingPhotos = pendingPhotos.map((p: any) => ({
+    id: String(p._id),
+    url: p.url,
+    moderationStatus: p.moderationStatus,
+    kind: p.kind,
+  }));
+
+  if (!options?.includeContact) {
+    delete json.phone;
+  }
+
+  return json;
+}
+
+async function enrichCandidatesAdmin(
+  profiles: ICandidateProfileDocument[],
+): Promise<Record<string, unknown>[]> {
+  const userMap = await loadUserSummaries(profiles.map((p) => toObjectId(String(p.userId))));
+
+  const photoIds = profiles.map((p) => p.photoId).filter(Boolean) as Types.ObjectId[];
+  const photoUrls = photoIds.length
+    ? await MediaAsset.find({ _id: { $in: photoIds } })
+        .select('url')
+        .lean()
+    : [];
+  const photoUrlById = new Map(photoUrls.map((a: any) => [String(a._id), a.url]));
+
+  return profiles.map((profile) => {
+    const json = profile.toJSON() as unknown as Record<string, unknown>;
+    const userId = String(profile.userId);
+    const user = userMap.get(userId);
+
+    if (user) {
+      json.user = {
+        id: user.id,
+        email: user.email,
+        status: user.status,
+        lastLoginAt: user.lastLoginAt ?? null,
+      };
     }
 
-    await activityLogService.log({
-      actorUserId: viewer.id,
-      actorLabel,
-      action: 'contact.viewed',
-      targetType: 'candidate',
-      targetId: String(profile._id),
-      detail: {
-        fr: `Consultation du contact de ${profile.firstName} ${profile.lastName}`,
-        en: `Viewed contact for ${profile.firstName} ${profile.lastName}`,
-      },
-      ip: meta?.ip,
-      userAgent: meta?.userAgent,
-    });
-  } catch {
-    // activity log module optional at runtime
-  }
+    if (profile.photoId) {
+      json.photoUrl = photoUrlById.get(String(profile.photoId)) ?? null;
+    } else {
+      json.photoUrl = null;
+    }
+
+    delete json.phone;
+    return json;
+  });
+}
+
+async function userIdsForStatus(status: string): Promise<Types.ObjectId[] | null> {
+  if (!status) return null;
+
+  const users = await User.find({ status }).select('_id').lean();
+  return users.map((u: any) => u._id as Types.ObjectId);
 }
 
 export async function findPublicById(
@@ -228,6 +380,10 @@ export async function findPublicById(
       await logContactView(viewer, profile, meta);
     }
   }
+
+  const { resolveMediaUrl, resolveMediaWithModeration } = await import('@/shared/enrichMedia');
+  json.photoUrl = await resolveMediaUrl(profile.photoId);
+  json.dishPhotos = await resolveMediaWithModeration(profile.foodPhotoIds);
 
   return json;
 }
@@ -354,7 +510,7 @@ export async function uploadCv(
 }
 
 export async function adminList(query: AdminCandidateListQuery): Promise<{
-  data: ICandidateProfileDocument[];
+  data: Record<string, unknown>[];
   meta: ReturnType<typeof paginationMeta>;
 }> {
   const filter: FilterQuery<ICandidateProfileDocument> = {};
@@ -362,10 +518,36 @@ export async function adminList(query: AdminCandidateListQuery): Promise<{
   if (query.verified === 'true') filter.verified = true;
   if (query.verified === 'false') filter.verified = false;
 
+  const sectorId = query.sectorId || query.sector;
+  const positionId = query.positionId || query.position;
+  if (sectorId) filter.sectorId = sectorId;
+  if (positionId) filter.positionId = positionId;
+  if (query.city) filter.city = query.city;
+  if (query.experience) filter.experience = query.experience;
+  if (query.availability) filter.availability = query.availability;
+
+  const minCompletion = Number(query.minCompletion);
+  if (minCompletion > 0) {
+    filter.completionPercent = { $gte: minCompletion };
+  }
+
+  if (query.status === 'deleted') {
+    filter.deletedAt = { $ne: null };
+  } else if (query.status) {
+    filter.deletedAt = null;
+    const userIds = await userIdsForStatus(query.status);
+    if (userIds) {
+      filter.userId = { $in: userIds };
+    }
+  }
+
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(Math.max(1, Number(query.limit) || SEARCH_PAGE_SIZE), 100);
 
-  const modelQuery = CandidateProfile.find(filter).select('+phone');
+  const findOptions =
+    query.status === 'deleted' ? { includeDeleted: true } : undefined;
+
+  const modelQuery = CandidateProfile.find(filter, null, findOptions).select('+phone');
   const builder = new QueryBuilder<ICandidateProfileDocument>(modelQuery, query);
 
   if (query.q?.trim()) {
@@ -374,38 +556,239 @@ export async function adminList(query: AdminCandidateListQuery): Promise<{
 
   builder.sort('-createdAt').paginate(SEARCH_PAGE_SIZE);
 
-  const [data, total] = await Promise.all([
+  const [profiles, total] = await Promise.all([
     builder.query.exec(),
-    CandidateProfile.countDocuments(filter),
+    CandidateProfile.countDocuments(filter, findOptions),
   ]);
+
+  const data = await enrichCandidatesAdmin(profiles);
 
   return { data, meta: paginationMeta(page, limit, total) };
 }
 
-export async function adminFindById(id: string): Promise<ICandidateProfileDocument> {
+export async function adminFindById(
+  id: string,
+  options: AdminFindCandidateOptions = {},
+): Promise<Record<string, unknown>> {
+  const findOptions = { includeDeleted: true };
+  const profile = await CandidateProfile.findById(id, null, findOptions).select('+phone');
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
+  const mayReveal =
+    options.revealContact &&
+    options.viewer &&
+    (options.viewer.adminLevel === 'super' ||
+      options.viewer.permissions.includes('view-contact'));
+
+  if (mayReveal) {
+    await logContactView(options.viewer!, profile, {
+      ip: options.ip,
+      userAgent: options.userAgent,
+    });
+  }
+
+  return enrichCandidateAdmin(profile, null, { includeContact: Boolean(mayReveal) });
+}
+
+export async function adminUpdate(
+  id: string,
+  input: AdminUpdateCandidateInput,
+  adminUserId: string,
+): Promise<Record<string, unknown>> {
   const profile = await CandidateProfile.findById(id).select('+phone');
   if (!profile) {
     throw new ApiError(404, 'Candidate profile not found');
   }
-  return profile;
+
+  if (input.sectorId !== undefined) profile.sectorId = input.sectorId;
+  if (input.positionId !== undefined) profile.positionId = input.positionId;
+
+  if (profile.sectorId && profile.positionId) {
+    taxonomyService.ensurePositionBelongsToSector(profile.positionId, profile.sectorId);
+  }
+
+  if (input.firstName !== undefined) profile.firstName = input.firstName;
+  if (input.lastName !== undefined) profile.lastName = input.lastName;
+  if (input.city !== undefined) profile.city = input.city;
+  if (input.experience !== undefined) profile.experience = input.experience;
+  if (input.availability !== undefined) profile.availability = input.availability;
+  if (input.contractType !== undefined) profile.contractType = input.contractType;
+  if (input.expectedSalary !== undefined) profile.expectedSalary = input.expectedSalary;
+  if (input.phone !== undefined) profile.phone = input.phone;
+  if (input.about !== undefined) profile.about = input.about;
+  if (input.skills !== undefined) profile.skills = input.skills;
+  if (input.languages !== undefined) profile.languages = input.languages;
+
+  const user = await userService.findById(String(profile.userId));
+  profile.searchable =
+    profile.completionPercent === 100 &&
+    user?.status !== 'suspended' &&
+    user?.status !== 'deleted';
+
+  await profile.save();
+  await logAdminCandidateAction(adminUserId, 'candidate.updated', profile, {
+    fr: `Profil modifié : ${profile.firstName} ${profile.lastName}`,
+    en: `Profile updated: ${profile.firstName} ${profile.lastName}`,
+  });
+
+  return enrichCandidateAdmin(profile);
+}
+
+export async function adminListApplications(candidateId: string): Promise<unknown[]> {
+  const profile = await CandidateProfile.findById(candidateId);
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
+  const { Application } = await import('../application/application.model');
+  const { Job } = await import('../job/job.model');
+  const { EmployerProfile } = await import('../employer/employer.model');
+
+  const applications = await Application.find({ candidateId: profile._id }).sort({
+    appliedAt: -1,
+  });
+
+  const jobIds = applications.map((a: any) => a.jobId);
+  const employerIds = applications.map((a: any) => a.employerId);
+
+  const [jobs, employers] = await Promise.all([
+    Job.find({ _id: { $in: jobIds } }).lean(),
+    EmployerProfile.find({ _id: { $in: employerIds } }).lean(),
+  ]);
+
+  const jobById = new Map(jobs.map((j: any) => [String(j._id), j]));
+  const employerById = new Map(employers.map((e: any) => [String(e._id), e]));
+
+  return applications.map((app: any) => {
+    const json = app.toJSON() as Record<string, unknown>;
+    const job = jobById.get(String(app.jobId));
+    const employer = employerById.get(String(app.employerId));
+    return {
+      ...json,
+      job: job ?? null,
+      employer: employer ?? null,
+    };
+  });
+}
+
+export async function adminGetHistory(candidateId: string): Promise<{
+  contactRequests: unknown[];
+  adminActions: unknown[];
+}> {
+  const profile = await CandidateProfile.findById(candidateId);
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
+  const { ActivityLog } = await import('../activityLog/activityLog.model');
+  const candidateObjectId = toObjectId(candidateId);
+
+  const [contactRequests, adminActions] = await Promise.all([
+    ActivityLog.find({
+      action: 'contact.viewed',
+      targetType: 'candidate',
+      targetId: candidateObjectId,
+    })
+      .sort({ createdAt: -1 })
+      .lean(),
+    ActivityLog.find({
+      targetType: 'candidate',
+      targetId: candidateObjectId,
+      action: { $ne: 'contact.viewed' },
+    })
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  const mapEntry = (entry: any) => ({
+    ...entry,
+    id: String(entry._id),
+    type: activityLogService.activityTypeFromAction(entry.action),
+  });
+
+  return {
+    contactRequests: contactRequests.map(mapEntry),
+    adminActions: adminActions.map(mapEntry),
+  };
+}
+
+export async function adminAddSkill(
+  id: string,
+  skillId: string,
+  adminUserId: string,
+): Promise<Record<string, unknown>> {
+  const profile = await CandidateProfile.findById(id);
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
+  if (!profile.skills.includes(skillId)) {
+    profile.skills.push(skillId);
+    await profile.save();
+    await logAdminCandidateAction(adminUserId, 'candidate.skillAdded', profile, {
+      fr: `Compétence ajoutée : ${skillId}`,
+      en: `Skill added: ${skillId}`,
+    });
+  }
+
+  return enrichCandidateAdmin(profile);
+}
+
+export async function adminRemoveSkill(
+  id: string,
+  skillId: string,
+  adminUserId: string,
+): Promise<Record<string, unknown>> {
+  const profile = await CandidateProfile.findById(id);
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
+  profile.skills = profile.skills.filter((s: string) => s !== skillId);
+  await profile.save();
+  await logAdminCandidateAction(adminUserId, 'candidate.skillRemoved', profile, {
+    fr: `Compétence retirée : ${skillId}`,
+    en: `Skill removed: ${skillId}`,
+  });
+
+  return enrichCandidateAdmin(profile);
 }
 
 export async function setVerification(
   id: string,
   input: SetVerificationInput,
-): Promise<ICandidateProfileDocument> {
-  const profile = await adminFindById(id);
+): Promise<Record<string, unknown>> {
+  const profile = await CandidateProfile.findById(id).select('+phone');
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
   profile.verified = input.verified;
   profile.verifiedAt = input.verified ? new Date() : null;
   profile.verifiedBy = input.verified ? toObjectId(input.adminUserId) : null;
-  return profile.save();
+  await profile.save();
+
+  await logAdminCandidateAction(
+    input.adminUserId,
+    input.verified ? 'candidate.verified' : 'candidate.unverified',
+    profile,
+  );
+
+  return enrichCandidateAdmin(profile);
 }
 
 export async function setStatus(
   id: string,
   input: SetCandidateStatusInput,
-): Promise<ICandidateProfileDocument> {
-  const profile = await adminFindById(id);
+  adminUserId?: string,
+): Promise<Record<string, unknown>> {
+  const profile = await CandidateProfile.findById(id, null, { includeDeleted: true }).select('+phone');
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
+
   const user = await userService.findById(String(profile.userId));
 
   if (!user) {
@@ -414,6 +797,8 @@ export async function setStatus(
 
   if (input.status === 'active') {
     user.status = 'active';
+    user.deletedAt = null;
+    profile.deletedAt = null;
     profile.searchable = profile.completionPercent === 100;
   } else if (input.status === 'suspended') {
     user.status = 'suspended';
@@ -424,15 +809,29 @@ export async function setStatus(
     await user.save();
     await user.softDelete();
     await profile.softDelete();
-    return profile;
+    if (adminUserId) {
+      await logAdminCandidateAction(adminUserId, 'candidate.deleted', profile);
+    }
+    return enrichCandidateAdmin(profile);
   }
 
   await user.save();
-  return profile.save();
+  await profile.save();
+
+  if (adminUserId) {
+    const action =
+      input.status === 'suspended' ? 'candidate.suspended' : 'candidate.restored';
+    await logAdminCandidateAction(adminUserId, action, profile);
+  }
+
+  return enrichCandidateAdmin(profile);
 }
 
 export async function softDelete(id: string): Promise<ICandidateProfileDocument> {
-  const profile = await adminFindById(id);
+  const profile = await CandidateProfile.findById(id).select('+phone');
+  if (!profile) {
+    throw new ApiError(404, 'Candidate profile not found');
+  }
   profile.searchable = false;
   await profile.softDelete();
 

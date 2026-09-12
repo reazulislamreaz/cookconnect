@@ -181,7 +181,20 @@ function mapEmployerRow(e) {
   };
 }
 
+function jobDaysLeft(j) {
+  const end = j.extendedUntil || j.expiresAt;
+  if (!end) return 0;
+  return Math.max(0, Math.ceil((new Date(end).getTime() - Date.now()) / 86400000));
+}
+
+function jobIsExpired(j) {
+  if (j.status === "expired" || j.status === "closed") return true;
+  const end = j.extendedUntil || j.expiresAt;
+  return Boolean(end && new Date(end) < new Date());
+}
+
 function mapJobRow(j, employer) {
+  const embedded = j.employer || employer;
   return {
     ...j,
     id: j.id,
@@ -189,7 +202,7 @@ function mapJobRow(j, employer) {
     titleAr: pickL(j.title, "ar"),
     titleEn: pickL(j.title, "en"),
     employerId: j.employerId,
-    employerName: employer?.name || "",
+    employerName: embedded?.name || employer?.name || j.employerName || "",
     city: j.city,
     status: j.status,
     postedAt: isoDay(j.postedAt),
@@ -198,11 +211,151 @@ function mapJobRow(j, employer) {
     experience: j.experience,
     salaryMin: j.salaryMin,
     salaryMax: j.salaryMax,
-    daysLeft: j.expiresAt
-      ? Math.ceil((new Date(j.expiresAt).getTime() - Date.now()) / 86400000)
-      : 0,
-    expired: j.status === "expired" || (j.expiresAt && new Date(j.expiresAt) < new Date()),
+    daysLeft: jobDaysLeft(j),
+    expired: jobIsExpired(j),
   };
+}
+
+function mapActivityEntry(l) {
+  return {
+    id: l.id || String(l._id),
+    type: l.type || "admin-action",
+    action: l.action,
+    actor: l.actorLabel || l.actor || "Administrateur",
+    target: l.target || l.targetId || "—",
+    detail: pickL(l.detail),
+    detailAr: pickL(l.detail, "ar"),
+    detailEn: pickL(l.detail, "en"),
+    at: l.at || (l.createdAt ? String(l.createdAt).slice(0, 16).replace("T", " ") : ""),
+  };
+}
+
+function mapOutboxItem(n) {
+  const title = n.title;
+  const body = n.body;
+  return {
+    id: n.id,
+    templateId: n.type || n.templateId || "notification",
+    to: n.to || { id: n.userId, name: "" },
+    audience:
+      n.data?.audience ||
+      (n.to?.role === "employer" ? "employer" : n.to?.role === "candidate" ? "candidate" : "both"),
+    title: pickL(title),
+    titleAr: pickL(title, "ar"),
+    titleEn: pickL(title, "en"),
+    body: pickL(body),
+    bodyAr: pickL(body, "ar"),
+    bodyEn: pickL(body, "en"),
+    channels: ["in-app", "email"],
+    inAppStatus: "delivered",
+    emailStatus: n.emailSentAt ? "sent" : "queued",
+    at: n.createdAt ? String(n.createdAt).slice(0, 16).replace("T", " ") : "",
+  };
+}
+
+function mapApplicationRow(a) {
+  const job = a.job && typeof a.job === "object" ? a.job : null;
+  const employer = a.employer && typeof a.employer === "object" ? a.employer : null;
+  return {
+    ...a,
+    id: a.id || String(a._id),
+    jobId: job?.id || a.jobId,
+    jobTitle: job ? pickL(job.title) : a.jobTitle || "",
+    candidateId: a.candidateId?.id || a.candidateId,
+    employerId: employer?.id || a.employerId,
+    status: a.status,
+    appliedAt: isoDay(a.appliedAt),
+    job: job
+      ? {
+          ...mapJobRow(job, employer),
+          title: pickL(job.title),
+          titleAr: pickL(job.title, "ar"),
+          titleEn: pickL(job.title, "en"),
+        }
+      : null,
+    employer: employer ? mapEmployerRow(employer) : null,
+  };
+}
+
+function mapChefDetail(raw) {
+  const base = mapCandidateRow(raw);
+  const pos = ALL_POSITIONS.find((p) => p.id === raw.positionId);
+  const about = raw.about;
+  const dishPhotos = (raw.dishPhotos || [])
+    .map((p) => (typeof p === "string" ? p : p.url))
+    .filter(Boolean);
+
+  return {
+    ...raw,
+    ...base,
+    firstName: raw.firstName,
+    lastName: raw.lastName,
+    photo: raw.photoUrl || base.photo || "",
+    about: typeof about === "string" ? about : pickL(about),
+    aboutAr: typeof about === "object" ? pickL(about, "ar") : raw.aboutAr || "",
+    aboutEn: typeof about === "object" ? pickL(about, "en") : raw.aboutEn || "",
+    skills: raw.skills || [],
+    training: raw.training || [],
+    history: raw.history || [],
+    foodPhotos: dishPhotos,
+    dishPhotos,
+    canUploadFoodPhotos: Boolean(pos?.photos),
+    pendingPhotos: (raw.pendingPhotos || []).map((p) => ({
+      id: p.id,
+      url: p.url || "",
+      type: p.kind === "profile-photo" || p.type === "profile" ? "profile" : "food",
+      uploadedAt: isoDay(p.createdAt || p.uploadedAt),
+      reports: p.reportCount ?? p.reports ?? 0,
+    })),
+    completion: raw.completionPercent ?? base.completion ?? 0,
+    registeredAt: isoDay(raw.createdAt) || base.registeredAt,
+    email: raw.user?.email || raw.email,
+    phone: raw.phone,
+  };
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] || "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+async function adminUploadMedia(blob, filename = "banner.webp") {
+  const token =
+    getJSON(ADMIN_META_KEY, null)?.accessToken ||
+    getString(ADMIN_TOKEN_KEY, "") ||
+    getJSON(ADMIN_SESSION_KEY, null)?.accessToken;
+
+  const form = new FormData();
+  form.append("file", blob, filename);
+  form.append("kind", "homepage");
+
+  const res = await fetch(`${API}/admin/media`, {
+    method: "POST",
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.success === false) {
+    throw new Error(json.message || "Upload failed");
+  }
+  return json.data;
+}
+
+async function candidateIdsByUserIds(userIds) {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (!unique.length) return new Map();
+
+  const { data } = await adminApiWithMeta("/admin/candidates?limit=200").catch(() => ({ data: [] }));
+  const map = new Map();
+  (data || []).forEach((c) => {
+    if (c.user?.id) map.set(String(c.user.id), c.id);
+  });
+  return map;
 }
 
 /* ------------------------------------------------------------- overlay */
@@ -383,7 +536,10 @@ export function notifyUser(templateId, { to, params = {} } = {}) {
 
 /** Everything queued for a user, newest first. The outbox screen is D1. */
 export async function fetchNotificationOutbox() {
-  if (USE_API) return [];
+  if (USE_API) {
+    const rows = await adminApi("/admin/notifications/outbox");
+    return (rows || []).map(mapOutboxItem);
+  }
   await delay();
   return [...readOverlay().outbox].reverse();
 }
@@ -484,9 +640,14 @@ export const BANNER_RULES = {
 export async function fetchSiteSettings() {
   if (USE_API) {
     const raw = await adminApi("/admin/site-settings");
+    const imageId = raw.imageId ? String(raw.imageId) : null;
+    let backgroundImage = raw.imageUrl || null;
+    if (!backgroundImage && imageId) {
+      backgroundImage = getString(`cookkonnekt.siteImage.${imageId}`, "") || null;
+    }
     return {
       background: raw.mode === "image" ? "image" : "blank",
-      backgroundImage: raw.imageUrl || null,
+      backgroundImage,
       imageName: raw.imageName || "",
       headline: raw.headline || DEFAULT_SITE_SETTINGS.headline,
       subheadline: raw.subheadline || DEFAULT_SITE_SETTINGS.subheadline,
@@ -500,20 +661,43 @@ export async function fetchSiteSettings() {
 
 export async function saveSiteSettings(next) {
   if (USE_API) {
+    let imageId;
+    let backgroundImage = next.backgroundImage;
+
+    if (next.background === "image" && next.backgroundImage?.startsWith("data:")) {
+      const blob = dataUrlToBlob(next.backgroundImage);
+      const uploaded = await adminUploadMedia(blob, next.imageName || "homepage-banner.webp");
+      imageId = uploaded.id;
+      backgroundImage = uploaded.url;
+      if (imageId && backgroundImage) {
+        setValue(`cookkonnekt.siteImage.${imageId}`, backgroundImage);
+      }
+    } else if (next.background === "blank") {
+      imageId = null;
+      backgroundImage = null;
+    }
+
     const body = {
       mode: next.background === "image" ? "image" : "blank",
       headline: next.headline,
       subheadline: next.subheadline,
       cta: next.ctaLabel,
+      ...(imageId !== undefined ? { imageId } : {}),
     };
     const saved = await adminApi("/admin/site-settings", {
       method: "PATCH",
       body: JSON.stringify(body),
     });
+    const savedImageId = saved.imageId ? String(saved.imageId) : null;
+    if (!backgroundImage && savedImageId) {
+      backgroundImage = getString(`cookkonnekt.siteImage.${savedImageId}`, "") || null;
+    }
     return {
       ok: true,
       settings: {
         background: saved.mode === "image" ? "image" : "blank",
+        backgroundImage,
+        imageName: next.imageName || "",
         headline: saved.headline,
         subheadline: saved.subheadline,
         ctaLabel: saved.cta,
@@ -547,7 +731,13 @@ export async function saveSiteSettings(next) {
 
 export async function fetchStatistics({ days = 30 } = {}) {
   if (USE_API) {
-    const data = await adminApi(`/admin/statistics${adminQs({ days })}`);
+    const [data, market] = await Promise.all([
+      adminApi(`/admin/statistics${adminQs({ days })}`),
+      adminApi("/admin/dashboard/market").catch(() => null),
+    ]);
+    const searchedTitles = (market?.searchedPositions || data.candidatesByPosition || []).map(
+      (r) => ({ id: r.id, count: r.count })
+    );
     return {
       candidates: {
         total: data.candidates?.total ?? data.candidates?.registered ?? 0,
@@ -562,9 +752,9 @@ export async function fetchStatistics({ days = 30 } = {}) {
       offers: data.offers || {},
       registrations: data.candidatesPerDay || [],
       market: {
-        searchedTitles: (data.candidatesByPosition || []).map((r) => ({ id: r.id, count: r.count })),
-        searchedCities: [],
-        averageSalary: 0,
+        searchedTitles,
+        searchedCities: (market?.searchedCities || []).map((r) => ({ id: r.id, count: r.count })),
+        averageSalary: market?.averageSalary ?? 0,
       },
     };
   }
@@ -851,20 +1041,18 @@ export async function fetchChefs({ verified = "verified", q = "" } = {}) {
  */
 export async function fetchChef(id, { revealContact = false } = {}) {
   if (USE_API) {
-    const raw = await adminApi(`/admin/candidates/${id}`);
-    const candidate = mapCandidateRow(raw);
+    const qs = revealContact ? "?revealContact=true" : "";
+    const raw = await adminApi(`/admin/candidates/${id}${qs}`);
+    const candidate = mapChefDetail(raw);
     const maySeeContact = can("view-contact");
-    if (revealContact && maySeeContact) {
-      logAction("contact.viewed", { target: candidate.name });
-    }
     const { phone, email, ...withoutContact } = candidate;
     const visible = revealContact && maySeeContact ? candidate : withoutContact;
     return {
       ...visible,
       contactVisible: revealContact && maySeeContact,
       canRevealContact: maySeeContact,
-      dishPhotos: [],
-      pendingPhotos: [],
+      dishPhotos: candidate.dishPhotos || [],
+      pendingPhotos: candidate.pendingPhotos || [],
     };
   }
 
@@ -903,6 +1091,11 @@ export async function fetchChef(id, { revealContact = false } = {}) {
 
 /** The offers this candidate applied to (Improvement points 14). */
 export async function fetchCandidateApplications(id) {
+  if (USE_API) {
+    const rows = await adminApi(`/admin/candidates/${id}/applications`);
+    return (rows || []).map(mapApplicationRow);
+  }
+
   await delay(150);
 
   return APPLICATIONS.filter((a) => a.candidateId === id).map((a) => {
@@ -920,6 +1113,14 @@ export async function fetchCandidateApplications(id) {
  * profile — the two halves of "who has touched this record".
  */
 export async function fetchCandidateHistory(id) {
+  if (USE_API) {
+    const data = await adminApi(`/admin/candidates/${id}/history`);
+    return {
+      contactRequests: (data?.contactRequests || []).map(mapActivityEntry),
+      adminActions: (data?.adminActions || []).map(mapActivityEntry),
+    };
+  }
+
   await delay(150);
 
   const candidate = getCandidate(id);
@@ -986,7 +1187,17 @@ const EDITABLE_CANDIDATE_FIELDS = [
  */
 export async function updateCandidate(id, changes) {
   if (USE_API) {
-    return { ok: true, id, changes };
+    const patch = Object.fromEntries(
+      Object.entries(changes).filter(([key]) => EDITABLE_CANDIDATE_FIELDS.includes(key))
+    );
+    if (patch.about && typeof patch.about === "string") {
+      patch.about = { fr: patch.about, ar: patch.about, en: patch.about };
+    }
+    await adminApi(`/admin/candidates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    return { ok: true, id, changes: patch };
   }
 
   await delay(300);
@@ -1008,6 +1219,14 @@ export async function updateCandidate(id, changes) {
 }
 
 export async function addCandidateSkill(id, skillId) {
+  if (USE_API) {
+    const updated = await adminApi(`/admin/candidates/${id}/skills`, {
+      method: "POST",
+      body: JSON.stringify({ skillId }),
+    });
+    return { ok: true, id, skills: updated.skills || [] };
+  }
+
   await delay(200);
 
   const current = { ...getCandidate(id), ...readOverlay().candidates[id] };
@@ -1021,6 +1240,13 @@ export async function addCandidateSkill(id, skillId) {
 }
 
 export async function removeCandidateSkill(id, skillId) {
+  if (USE_API) {
+    const updated = await adminApi(`/admin/candidates/${id}/skills/${skillId}`, {
+      method: "DELETE",
+    });
+    return { ok: true, id, skills: updated.skills || [] };
+  }
+
   await delay(200);
 
   const current = { ...getCandidate(id), ...readOverlay().candidates[id] };
@@ -1108,23 +1334,39 @@ export async function fetchRestaurants({ q = "" } = {}) {
 
 export async function fetchRestaurant(id) {
   if (USE_API) {
-    const raw = await adminApi(`/admin/employers/${id}`);
+    const [raw, activityRaw, jobsRaw] = await Promise.all([
+      adminApi(`/admin/employers/${id}`),
+      adminApi(`/admin/employers/${id}/activity`).catch(() => null),
+      adminApi(`/admin/jobs${adminQs({ employerId: id })}`).catch(() => []),
+    ]);
     const base = mapEmployerRow(raw);
-    const jobsRaw = await adminApi(`/admin/jobs${adminQs({ employerId: id })}`).catch(() => []);
-    const jobs = (jobsRaw?.data || jobsRaw || []).map((j) => mapJobRow(j, base));
+    const jobsList = Array.isArray(jobsRaw) ? jobsRaw : jobsRaw?.data || [];
+    const jobs = jobsList.map((j) => mapJobRow(j, j.employer || base));
+    const activity = activityRaw
+      ? {
+          offersPublished: activityRaw.offersPublished ?? jobs.length,
+          offersActive: activityRaw.offersActive ?? jobs.filter((j) => j.status === "active" && !j.expired).length,
+          offersPending: jobs.filter((j) => j.status === "pending").length,
+          applicationsReceived: activityRaw.applicationsReceived ?? 0,
+          profilesViewed: activityRaw.profilesViewed ?? 0,
+          contactRequests: activityRaw.contactRequests ?? 0,
+          declaredHires: activityRaw.declaredHires ?? 0,
+          lastActivity: activityRaw.lastActivity || isoDay(raw.updatedAt),
+        }
+      : {
+          offersPublished: jobs.length,
+          offersActive: jobs.filter((j) => j.status === "active" && !j.expired).length,
+          offersPending: jobs.filter((j) => j.status === "pending").length,
+          applicationsReceived: 0,
+          profilesViewed: 0,
+          contactRequests: 0,
+          declaredHires: 0,
+          lastActivity: isoDay(raw.updatedAt),
+        };
     return {
       ...base,
       blocked: base.status === "blocked",
-      activity: {
-        offersPublished: jobs.length,
-        offersActive: jobs.filter((j) => j.status === "active" && !j.expired).length,
-        offersPending: jobs.filter((j) => j.status === "pending").length,
-        applicationsReceived: 0,
-        profilesViewed: 0,
-        contactRequests: 0,
-        declaredHires: 0,
-        lastActivity: isoDay(raw.updatedAt),
-      },
+      activity,
       jobs,
       dishPhotos: [],
     };
@@ -1307,19 +1549,17 @@ const decorate = (job) => ({
 export async function fetchPendingOffers({ q = "" } = {}) {
   if (USE_API) {
     const { data } = await adminApiWithMeta(`/admin/jobs${adminQs({ status: "pending", q })}`);
-    const rows = await Promise.all(
-      (data || []).map(async (j) => {
-        const employer = await adminApi(`/admin/employers/${j.employerId}`).catch(() => null);
-        return {
-          ...mapJobRow(j, employer),
-          employer: employer ? mapEmployerRow(employer) : null,
-          waitingDays: j.postedAt
-            ? Math.max(0, Math.floor((Date.now() - new Date(j.postedAt).getTime()) / 86400000))
-            : 0,
-          applications: j.applicationCount ?? 0,
-        };
-      })
-    );
+    const rows = (data || []).map((j) => {
+      const employer = j.employer ? mapEmployerRow({ ...j.employer, user: j.employer.user }) : null;
+      return {
+        ...mapJobRow(j, j.employer),
+        employer,
+        waitingDays: j.postedAt
+          ? Math.max(0, Math.floor((Date.now() - new Date(j.postedAt).getTime()) / 86400000))
+          : 0,
+        applications: j.applicationCount ?? 0,
+      };
+    });
     return rows.sort((a, b) => (a.postedAt || "").localeCompare(b.postedAt || ""));
   }
 
@@ -1466,10 +1706,7 @@ export async function extendOffer(id, until) {
 /** Puts an expired or closed offer back on the board with a fresh window. */
 export async function republishOffer(id) {
   if (USE_API) {
-    const job = await adminApi(`/admin/jobs/${id}/decision`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "active" }),
-    });
+    const job = await adminApi(`/admin/jobs/${id}/republish`, { method: "POST" });
     return { ok: true, id, expiresAt: isoDay(job.expiresAt) };
   }
 
@@ -1512,10 +1749,7 @@ export async function republishOffer(id) {
 /** Takes an offer off the board without deleting it. */
 export async function deactivateOffer(id) {
   if (USE_API) {
-    await adminApi(`/admin/jobs/${id}/decision`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "closed" }),
-    });
+    await adminApi(`/admin/jobs/${id}/close`, { method: "POST" });
     return { ok: true, id, status: "closed" };
   }
 
@@ -1556,7 +1790,37 @@ const EDITABLE_OFFER_FIELDS = [
 
 export async function updateOffer(id, changes) {
   if (USE_API) {
-    return { ok: true, id, changes };
+    const patch = Object.fromEntries(
+      Object.entries(changes).filter(([key]) => EDITABLE_OFFER_FIELDS.includes(key))
+    );
+    const body = {};
+    if (patch.title !== undefined || patch.titleAr !== undefined || patch.titleEn !== undefined) {
+      body.title = {
+        fr: patch.title ?? "",
+        ar: patch.titleAr ?? patch.title ?? "",
+        en: patch.titleEn ?? patch.title ?? "",
+      };
+    }
+    if (
+      patch.description !== undefined ||
+      patch.descriptionAr !== undefined ||
+      patch.descriptionEn !== undefined
+    ) {
+      body.description = {
+        fr: patch.description ?? "",
+        ar: patch.descriptionAr ?? patch.description ?? "",
+        en: patch.descriptionEn ?? patch.description ?? "",
+      };
+    }
+    if (patch.salaryMin !== undefined) body.salaryMin = patch.salaryMin;
+    if (patch.salaryMax !== undefined) body.salaryMax = patch.salaryMax;
+    if (patch.city !== undefined) body.city = patch.city;
+
+    await adminApi(`/admin/jobs/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return { ok: true, id, changes: patch };
   }
 
   await delay(300);
@@ -1670,8 +1934,10 @@ export async function fetchEmployerJobs(employerId, { status = "all" } = {}) {
 export async function fetchJobOffer(id) {
   if (USE_API) {
     const job = await adminApi(`/admin/jobs/${id}`);
-    const employer = await adminApi(`/admin/employers/${job.employerId}`).catch(() => null);
-    const mapped = mapJobRow(job, employer);
+    const employer = job.employer
+      ? mapEmployerRow({ ...job.employer, user: job.employer.user })
+      : null;
+    const mapped = mapJobRow(job, job.employer);
     return {
       ...mapped,
       applications: job.applicationCount ?? 0,
@@ -1679,7 +1945,7 @@ export async function fetchJobOffer(id) {
       publishedDays: job.postedAt
         ? Math.max(0, Math.floor((Date.now() - new Date(job.postedAt).getTime()) / 86400000))
         : 0,
-      employer: employer ? mapEmployerRow(employer) : null,
+      employer,
     };
   }
 
@@ -1739,11 +2005,11 @@ const threadFor = (message, overlay) => {
 export async function fetchFeedback({ q = "", filter = "all", role = "all" } = {}) {
   if (USE_API) {
     const { data } = await adminApiWithMeta(
-      `/admin/feedback${adminQs({ q, status: filter === "answered" ? "answered" : filter === "unanswered" ? "new" : undefined, role })}`
+      `/admin/feedback${adminQs({ q, status: filter === "answered" ? "answered" : filter === "unanswered" ? "new" : undefined, role: role === "all" ? undefined : role })}`
     );
     const rows = (data || []).map((f) => ({
       id: f.id,
-      from: f.user?.email || f.userId,
+      from: f.from || f.user?.email || f.userId,
       role: f.role,
       rating: f.rating,
       message: f.message,
@@ -1833,15 +2099,60 @@ export async function fetchModeration() {
       adminApi("/admin/moderation/photos"),
       adminApi("/admin/moderation/reports"),
     ]);
-    return {
-      photos: (photos || []).map((p) => ({
-        ...p,
-        id: p.id,
-        url: p.url || "",
-        candidate: p.candidateId ? { id: p.candidateId } : null,
-      })),
-      reported: (reports || []).map((r) => ({ ...r, job: r.jobId })),
-    };
+    const userIds = (photos || []).map((p) => String(p.ownerUserId || "")).filter(Boolean);
+    const candidateByUser = await candidateIdsByUserIds(userIds);
+
+    const mappedPhotos = await Promise.all(
+      (photos || []).map(async (p) => {
+        const ownerUserId = String(p.ownerUserId || "");
+        const candidateId = p.candidateId || candidateByUser.get(ownerUserId) || null;
+        let candidate = null;
+        if (candidateId) {
+          try {
+            const c = await adminApi(`/admin/candidates/${candidateId}`);
+            candidate = mapCandidateRow(c);
+          } catch {
+            candidate = { id: candidateId, name: candidateId };
+          }
+        }
+        return {
+          ...p,
+          id: p.id || String(p._id),
+          url: p.url || "",
+          type: p.kind === "profile-photo" || p.type === "profile" ? "profile" : "food",
+          uploadedAt: isoDay(p.createdAt || p.uploadedAt),
+          reports: p.reportCount ?? p.reports ?? 0,
+          candidateId,
+          candidate,
+        };
+      })
+    );
+
+    const reported = await Promise.all(
+      (reports || []).map(async (r) => {
+        const jobId = String(r.targetId || r.jobId || "");
+        let job = null;
+        if (jobId) {
+          try {
+            const j = await adminApi(`/admin/jobs/${jobId}`);
+            job = mapJobRow(j, j.employer);
+          } catch {
+            job = null;
+          }
+        }
+        return {
+          ...r,
+          id: r.id || String(r._id),
+          jobId,
+          job,
+          reason: r.reason || "",
+          reportedAt: isoDay(r.createdAt || r.reportedAt),
+          reports: r.reportCount ?? 1,
+        };
+      })
+    );
+
+    return { photos: mappedPhotos, reported };
   }
 
   await delay();
@@ -1903,18 +2214,10 @@ export async function decidePhoto(id, decision, reason) {
 
 export async function fetchActivity({ type = "all" } = {}) {
   if (USE_API) {
-    const rows = await adminApi(`/admin/activity${adminQs({ type })}`);
-    return (rows || []).map((l) => ({
-      id: l.id,
-      type: l.type || "admin-action",
-      action: l.action,
-      actor: l.actorLabel || "Administrateur",
-      target: l.targetId || "—",
-      detail: pickL(l.detail),
-      detailAr: pickL(l.detail, "ar"),
-      detailEn: pickL(l.detail, "en"),
-      at: l.createdAt ? String(l.createdAt).slice(0, 16).replace("T", " ") : "",
-    }));
+    const apiType =
+      type === "admin" ? "admin-action" : type === "all" ? undefined : type;
+    const rows = await adminApi(`/admin/activity${adminQs({ type: apiType })}`);
+    return (rows || []).map(mapActivityEntry);
   }
 
   await delay();
@@ -2115,6 +2418,11 @@ export async function setAdminDisabled(adminId, disabled) {
   if (USE_API) {
     if (disabled) {
       await adminApi(`/admin/admins/${adminId}`, { method: "DELETE" });
+    } else {
+      await adminApi(`/admin/admins/${adminId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "active" }),
+      });
     }
     return { ok: true, adminId, disabled };
   }

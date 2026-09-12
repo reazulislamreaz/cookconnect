@@ -18,12 +18,30 @@ export const findById = catchAsync(async (req: Request, res: Response) => {
   sendResponse({ res, message: 'Job retrieved', data: job });
 });
 
+export const update = catchAsync(async (req: Request, res: Response) => {
+  const job = await jobService.adminUpdate(String(req.params.id), {
+    ...req.body,
+    adminUserId: req.user!.id,
+  });
+  sendResponse({ res, message: 'Job updated', data: job });
+});
+
 export const decision = catchAsync(async (req: Request, res: Response) => {
   const job = await jobService.adminDecision(String(req.params.id), {
     ...req.body,
     adminUserId: req.user!.id,
   });
   sendResponse({ res, message: 'Job decision recorded', data: job });
+});
+
+export const close = catchAsync(async (req: Request, res: Response) => {
+  const job = await jobService.adminClose(String(req.params.id), req.user!.id);
+  sendResponse({ res, message: 'Job closed', data: job });
+});
+
+export const republish = catchAsync(async (req: Request, res: Response) => {
+  const job = await jobService.adminRepublish(String(req.params.id), req.user!.id);
+  sendResponse({ res, message: 'Job republished', data: job });
 });
 
 export const extend = catchAsync(async (req: Request, res: Response) => {

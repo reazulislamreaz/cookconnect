@@ -1,5 +1,8 @@
 import { Types } from 'mongoose';
+import path from 'path';
 import { ApiError } from '@/shared/ApiError';
+import { getStorage } from '@/utils/storage';
+import { validateImageBuffer, validateImageMime } from '@/middlewares/upload';
 import { MediaAsset } from '@/modules/media/media.model';
 import {
   CreateMediaAssetInput,
@@ -75,4 +78,40 @@ export async function listReports(limit = 50, skip = 0) {
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
+}
+
+type UploadedFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
+
+export async function adminUpload(
+  ownerUserId: string,
+  kind: 'homepage' | 'banner',
+  file: UploadedFile,
+): Promise<{ id: string; url: string }> {
+  validateImageMime(file.mimetype);
+  const dimensions = await validateImageBuffer(file.buffer);
+
+  const ext = path.extname(file.originalname) || '.bin';
+  const key = `admin/${kind}-${Date.now()}${ext}`;
+  const stored = await getStorage().upload(key, file.buffer, file.mimetype);
+
+  const asset = await createAsset({
+    ownerUserId,
+    kind,
+    storageKey: stored.storageKey,
+    url: stored.url,
+    mimeType: file.mimetype,
+    sizeBytes: file.size,
+    width: dimensions.width,
+    height: dimensions.height,
+  });
+
+  asset.moderationStatus = 'approved';
+  await asset.save();
+
+  return { id: String(asset._id), url: asset.url };
 }

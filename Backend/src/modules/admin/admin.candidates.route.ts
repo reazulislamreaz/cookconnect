@@ -3,8 +3,12 @@ import { auth, hasPermission } from '@/middlewares/auth';
 import { validateRequest } from '@/middlewares/validateRequest';
 import * as adminCandidatesController from './admin.candidates.controller';
 import {
+  addCandidateSkillSchema,
+  adminCandidateFindQuerySchema,
   adminCandidateListQuerySchema,
+  adminUpdateCandidateSchema,
   candidateIdParamSchema,
+  candidateSkillParamSchema,
   setCandidateStatusSchema,
   setVerificationSchema,
 } from './admin.validation';
@@ -27,10 +31,45 @@ router.get(
 );
 
 router.get(
-  '/:id',
+  '/:id/applications',
   hasPermission('manage-candidates'),
   validateRequest({ params: candidateIdParamSchema }),
+  adminCandidatesController.listApplications,
+);
+
+router.get(
+  '/:id/history',
+  hasPermission('manage-candidates'),
+  validateRequest({ params: candidateIdParamSchema }),
+  adminCandidatesController.getHistory,
+);
+
+router.get(
+  '/:id',
+  hasPermission('manage-candidates'),
+  validateRequest({ params: candidateIdParamSchema, query: adminCandidateFindQuerySchema }),
   adminCandidatesController.findById,
+);
+
+router.patch(
+  '/:id',
+  hasPermission('manage-candidates'),
+  validateRequest({ params: candidateIdParamSchema, body: adminUpdateCandidateSchema }),
+  adminCandidatesController.update,
+);
+
+router.post(
+  '/:id/skills',
+  hasPermission('manage-candidates'),
+  validateRequest({ params: candidateIdParamSchema, body: addCandidateSkillSchema }),
+  adminCandidatesController.addSkill,
+);
+
+router.delete(
+  '/:id/skills/:skillId',
+  hasPermission('manage-candidates'),
+  validateRequest({ params: candidateSkillParamSchema }),
+  adminCandidatesController.removeSkill,
 );
 
 router.patch(

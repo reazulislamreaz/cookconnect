@@ -17,6 +17,7 @@ export const feedbackIdParamSchema = z.object({
 
 export const adminFeedbackListQuerySchema = z.object({
   status: z.enum(FEEDBACK_STATUSES).optional(),
+  role: z.enum(FEEDBACK_ROLES).or(z.literal('all')).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional(),
 });

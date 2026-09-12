@@ -18,3 +18,25 @@ export async function log(input: LogActivityInput): Promise<IActivityLogDocument
     userAgent: input.userAgent,
   });
 }
+
+export function activityTypeFromAction(action: string): string {
+  if (action === 'contact.viewed') return 'contact-access';
+  if (action.includes('photo')) return 'photo';
+  return 'admin-action';
+}
+
+export function buildActivityListFilter(type?: string): Record<string, unknown> {
+  if (!type || type === 'all') return {};
+
+  if (type === 'admin' || type === 'admin-action') {
+    return { action: { $not: { $regex: /^(contact|photo)/ } } };
+  }
+  if (type === 'contact-access') {
+    return { action: 'contact.viewed' };
+  }
+  if (type === 'photo') {
+    return { action: { $regex: /photo/ } };
+  }
+
+  return { action: type };
+}

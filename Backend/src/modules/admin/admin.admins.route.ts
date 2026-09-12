@@ -18,7 +18,7 @@ router.post('/', validateRequest({ body: createAdminSchema }), adminController.c
 router.patch(
   '/:id',
   validateRequest({ params: adminIdParamSchema, body: updateAdminPermissionsSchema }),
-  adminController.updatePermissions,
+  adminController.updateAdmin,
 );
 
 router.delete(
